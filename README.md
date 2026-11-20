@@ -4,8 +4,8 @@ An Indic-language harness for Sarvam Token Factory's six serverless models:
 the same 12 Hindi / Tamil / Bengali / Hinglish prompts to every model, with
 time-to-first-token, real token counts and rupee cost recorded per call.
 
-Status: Day 1 - the harness. The leaderboard site, the human scorer and the
-local demo server are Day 2 and are not built yet.
+Status: Day 2 - metrics, the cost-gated full run and the human scorer. The
+leaderboard builder and the site are not built yet.
 
 ## Quickstart
 
@@ -45,6 +45,40 @@ that recomputes from the token counts and `bench/registry.py`. smoke-check
 prints PASS/FAIL per criterion. If anything fails, report what you see and
 stop; the harness never runs the live call itself.
 
+## Cost projection and confirmation
+
+`run` prints a projected cost ceiling before it spends anything - from the
+registry's prices and the prompt set: completions capped at
+max_tokens=1500, input over-estimated at one token per prompt character.
+It then asks y/N; `--dry-run` prints the same projection and exits without
+sending or writing anything, and `--yes` skips the prompt. Every call line
+carries the running rupee total, so a runaway is visible in the first ten
+calls. A 402 (credits) or 403 (key) stops the run and keeps what exists.
+
+## Scoring (yours, by hand)
+
+    make score                      # python -m bench.cli score
+    python3 -m bench.cli score --run <run_id> [--force]
+
+Walks the answers that carry no score yet, shows each with its prompt and
+its rubric line, and records the 0, 1 or 2 you type into
+data/scores.csv, keyed by run_id + model + prompt_id. The score comes only
+from what you type: this command never invents, defaults or estimates one,
+and it never overwrites an existing score without --force. Errored and
+empty cells are skipped - they carry their error codes in the table
+instead. Stop with q; the walk picks up where it left off.
+
+## Metrics
+
+bench/metrics.py classifies script fidelity from the Unicode ranges in
+handoff Block G - deva U+0900-U+097F, taml U+0B80-U+0BFF, beng
+U+0980-U+09FF, latin a-z A-Z - with labels native_script, romanized,
+english, mixed at the 20% lines, and computes p50/p90 latency percentiles
+and per-model cost aggregates. The blocks alone cannot tell romanised
+Hindi from English, so a small deterministic lexicon of English function
+words draws that line (>= 25% function words means English). No model ever
+judges another model here; quality stays human.
+
 ## What a run writes
 
     data/runs/<YYYY-MM-DD>/<run_id>/results.jsonl   one JSON object per line, append-only
@@ -60,7 +94,10 @@ the run's cost total is the sum of the row costs the API made possible.
 
 Each run owns its directory under data/runs/<YYYY-MM-DD>/<run_id>, so no two
 runs ever share or overwrite a run.json; if two runs start in the same
-second, the second run_id gets a -2 suffix. `run.json` is written when the
+second, the second run_id gets a -2 suffix. A deliberate extra run - one
+model, one prompt, a chosen --reasoning-effort - is just another run
+directory, so a max-effort cell never mixes into a main run's table.
+`run.json` is written when the
 run opens (total unknown) and again when it closes. A 402 (credits) or 403
 (key) stops the run and keeps every row written so far.
 
@@ -100,7 +137,8 @@ model that rejects a value is probed once without the field and records
     bench/prompts.py     loads prompts.yaml, hashes the raw bytes
     bench/runner.py      one_call: Block D's request + retry policy; the fan-out
     bench/store.py       one directory per run: append-only results.jsonl + run.json
-    bench/cli.py         run --models <ids|all> --prompts <ids|all>
+    bench/cli.py         run --models <ids|all> --prompts <ids|all>; score
+    bench/metrics.py     script classifier (Block G ranges), p50/p90, cost aggregation
     bench/smoke.py       verifies the newest row against the smoke criteria
     prompts/prompts.yaml the 12 prompts (Block B) - fixed experimental content
     tests/               registry, prompts, runner, store, smoke, CLI; fakes, no network

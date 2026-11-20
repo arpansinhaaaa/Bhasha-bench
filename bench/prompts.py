@@ -31,3 +31,10 @@ def load_prompts(path: str | Path | None = None) -> tuple[list[dict], str]:
     if len(ids) != len(set(ids)):
         raise ValueError(f"duplicate prompt ids in {file}")
     return prompts, hashlib.sha256(raw).hexdigest()
+
+
+def load_rubric(path: str | Path | None = None) -> str:
+    """The top-level 0-2 rubric, shown once before a scoring walk."""
+    file = Path(path) if path is not None else DEFAULT_PATH
+    data = yaml.safe_load(file.read_bytes().decode("utf-8"))
+    return data["rubric"].strip()

@@ -33,7 +33,8 @@ def _rows(base):
 def test_run_one_call_prints_one_line_and_appends_one_row(tmp_path, capsys):
     model = next(iter(registry.MODELS))
     client = FakeClient([ok_action()])
-    args = SimpleNamespace(models=model, prompts="hi-1", reasoning_effort="low")
+    args = SimpleNamespace(models=model, prompts="hi-1", reasoning_effort="low",
+                           yes=True, dry_run=False)
     rc = cli.cmd_run(args, client=client, runs_base=tmp_path)
     assert rc == 0
 
@@ -62,7 +63,8 @@ def test_run_one_call_prints_one_line_and_appends_one_row(tmp_path, capsys):
 
 def test_models_all_runs_every_registry_model(tmp_path):
     client = FakeClient([ok_action()])
-    args = SimpleNamespace(models="all", prompts="hi-3", reasoning_effort="low")
+    args = SimpleNamespace(models="all", prompts="hi-3", reasoning_effort="low",
+                           yes=True, dry_run=False)
     rc = cli.cmd_run(args, client=client, runs_base=tmp_path)
     assert rc == 0
     rows = _rows(tmp_path)
@@ -75,7 +77,8 @@ def test_a_failed_call_is_still_written_as_a_row(tmp_path, capsys):
     model = next(iter(registry.MODELS))
     client = FakeClient([
         err_action(429, "model_rate_limit_exceeded_error", retry_after=0)])
-    args = SimpleNamespace(models=model, prompts="hi-1", reasoning_effort="low")
+    args = SimpleNamespace(models=model, prompts="hi-1", reasoning_effort="low",
+                           yes=True, dry_run=False)
     rc = cli.cmd_run(args, client=client, runs_base=tmp_path)
     assert rc == 0                       # the call failed; the run recorded it
     rows = _rows(tmp_path)
@@ -108,7 +111,7 @@ def test_unknown_prompt_id_is_rejected_before_anything_runs(tmp_path, capsys):
 def test_missing_key_is_reported_cleanly(tmp_path, capsys, monkeypatch):
     monkeypatch.delenv("SARVAM_API_KEY", raising=False)
     args = SimpleNamespace(models=next(iter(registry.MODELS)), prompts="hi-1",
-                           reasoning_effort="low")
+                           reasoning_effort="low", dry_run=False, yes=False)
     rc = cli.cmd_run(args, client=None, runs_base=tmp_path)
     assert rc == 2
     assert "SARVAM_API_KEY is not set" in capsys.readouterr().err
@@ -120,12 +123,72 @@ def test_parser_defaults_match_the_handoff():
     assert args.models == next(iter(registry.MODELS))  # Block G: the run default
     assert args.prompts == "all"
     assert args.reasoning_effort == "low"
+    assert args.dry_run is False and args.yes is False
+    score_args = cli.build_parser().parse_args(["score"])
+    assert score_args.run is None and score_args.force is False
+
+
+def test_dry_run_prints_the_projection_and_touches_nothing(tmp_path, capsys):
+    model = next(iter(registry.MODELS))
+    args = SimpleNamespace(models=model, prompts="hi-1",
+                           reasoning_effort="low", dry_run=True, yes=False)
+    rc = cli.cmd_run(args, client=None, runs_base=tmp_path)  # no key, no client
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "projected cost ceiling" in out
+    assert "₹" in out
+    assert list(tmp_path.iterdir()) == []       # nothing written, nothing sent
+
+
+def test_run_aborts_when_not_confirmed(tmp_path, capsys):
+    model = next(iter(registry.MODELS))
+    client = FakeClient([ok_action()])
+    args = SimpleNamespace(models=model, prompts="hi-1",
+                           reasoning_effort="low", dry_run=False, yes=False)
+    rc = cli.cmd_run(args, client=client, runs_base=tmp_path,
+                     approve=lambda planned: False)
+    assert rc == 1
+    assert "run cancelled" in capsys.readouterr().err
+    assert client.calls == []                   # nothing was ever sent
+    assert list(tmp_path.iterdir()) == []       # and nothing was written
+
+
+def test_confirmation_is_asked_after_the_projection(tmp_path, capsys):
+    model = next(iter(registry.MODELS))
+    client = FakeClient([ok_action()])
+    asked = []
+
+    def approve(planned):
+        asked.append(planned)
+        return True
+
+    args = SimpleNamespace(models=model, prompts="hi-1",
+                           reasoning_effort="low", dry_run=False, yes=False)
+    rc = cli.cmd_run(args, client=client, runs_base=tmp_path, approve=approve)
+    assert rc == 0
+    assert asked == [1]
+    assert "projected cost ceiling" in capsys.readouterr().out
+    assert len(_rows(tmp_path)) == 1
+
+
+def test_running_total_prints_after_each_call(tmp_path, capsys):
+    model = next(iter(registry.MODELS))
+    client = FakeClient([ok_action()])
+    args = SimpleNamespace(models=model, prompts="hi-1,hi-2",
+                           reasoning_effort="low", dry_run=False, yes=True)
+    rc = cli.cmd_run(args, client=client, runs_base=tmp_path)
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert out.count("Σ ₹") == 2                # one running total per line
+    assert "Σ ₹0.0013" in out                   # 2 x 0.000645, cumulative
+    assert "2 calls ·" in out
 
 
 def test_two_consecutive_runs_keep_separate_run_json(tmp_path):
     model = next(iter(registry.MODELS))
     client = FakeClient([ok_action()])
-    args = SimpleNamespace(models=model, prompts="hi-1", reasoning_effort="low")
+    args = SimpleNamespace(models=model, prompts="hi-1", reasoning_effort="low",
+                           yes=True, dry_run=False)
     assert cli.cmd_run(args, client=client, runs_base=tmp_path) == 0
     assert cli.cmd_run(args, client=client, runs_base=tmp_path) == 0
 

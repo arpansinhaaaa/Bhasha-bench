@@ -1,0 +1,4 @@
+# Bhasha Bench - Python 3.12. Nothing beyond these three without asking.
+openai>=1.59
+pyyaml>=6.0
+pytest>=8.0

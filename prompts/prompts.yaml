@@ -1,0 +1,127 @@
+version: 1
+rubric: |
+  0 = wrong answer, refused, or answered in the wrong script
+  1 = right idea, but a stated constraint was broken (length, script, or a language ban)
+  2 = correct, and every constraint in the prompt was met
+
+prompts:
+  # ---- Hindi, Devanagari output -------------------------------------------
+  - id: hi-1
+    language: hi
+    script: deva
+    category: reasoning
+    text: |
+      एक दुकानदार 12 वस्तुएँ ₹1,800 में खरीदता है और उन्हें 15% लाभ पर बेचता है।
+      एक वस्तु का विक्रय मूल्य क्या है? चरण दिखाइए।
+    rubric: Correct answer is ₹172.50. Steps shown, arithmetic right.
+
+  - id: hi-2
+    language: hi
+    script: deva
+    category: summarise
+    text: |
+      इस अनुच्छेद को ठीक चार वाक्यों में सारांशित कीजिए।
+
+      अनुच्छेद: गाँव की लाइब्रेरी सुबह नौ बजे खुलती है। इसमें दो कमरे हैं — एक किताबों के लिए
+      और एक पढ़ने के लिए। रविवार को एक शिक्षक आकर बच्चों को कहानियाँ सुनाते हैं। पिछले महीने
+      चालीस नई किताबें आईं, ज़्यादातर हिंदी में।
+    rubric: Exactly four sentences, in Devanagari, and the content matches the passage.
+
+  - id: hi-3
+    language: hi
+    script: latin
+    category: script-switch
+    text: |
+      दुकान को स्टॉक का हिसाब क्यों रखना चाहिए — इस पर तीन बिंदु दीजिए, लेकिन जवाब रोमन लिपि
+      में हिंग्लिश में लिखिए, देवनागरी में नहीं।
+    rubric: Three points, in Roman script, no Devanagari characters at all.
+
+  # ---- Tamil ---------------------------------------------------------------
+  - id: ta-1
+    language: ta
+    script: taml
+    category: reasoning
+    text: |
+      ஒரு கடைக்காரர் 1,800 ரூபாய்க்கு 12 பொருட்களை வாங்குகிறார், அவற்றை 15 சதவீத லாபத்தில்
+      விற்கிறார். ஒரு பொருளின் விற்பனை விலை என்ன? படிகளைக் காட்டுங்கள்.
+    rubric: Correct answer is ₹172.50. Steps shown, in Tamil script.
+
+  - id: ta-2
+    language: ta
+    script: taml
+    category: summarise
+    text: |
+      இந்தப் பத்தியைப் படித்து, சரியாக நான்கு வாக்கியங்களில் சுருக்கமாக எழுதுங்கள்.
+
+      பத்தி: கிராம நூலகம் காலை ஒன்பது மணிக்குத் திறக்கப்படுகிறது. இதில் இரண்டு அறைகள் உள்ளன,
+      ஒன்று புத்தகங்களுக்காகவும் மற்றொன்று வாசிப்பதற்காகவும் உள்ளது. ஞாயிற்றுக்கிழமைகளில் ஒரு
+      ஆசிரியர் வந்து குழந்தைகளுக்குக் கதைகளை வாசித்துக் காட்டுகிறார். கடந்த மாதம் நாற்பது புதிய
+      புத்தகங்கள் வந்தன, அவற்றில் பெரும்பாலானவை தமிழில் உள்ளன.
+    rubric: Exactly four sentences, in Tamil script, content matches the passage.
+
+  - id: ta-3
+    language: ta
+    script: taml
+    category: instruction
+    text: |
+      ஒரு கடை ஏன் இருப்புப் பதிவேடு வைத்திருக்க வேண்டும் என்பதைப் பற்றிச் சரியாக மூன்று
+      வாக்கியங்களில் எழுதுங்கள்.
+    rubric: Exactly three sentences in Tamil script. Any Latin-script word counts against it.
+
+  # ---- Bengali -------------------------------------------------------------
+  - id: bn-1
+    language: bn
+    script: beng
+    category: reasoning
+    text: |
+      একজন দোকানদার ১,৮০০ টাকা দিয়ে ১২টি জিনিস কেনেন এবং ১৫ শতাংশ লাভে সেগুলো বিক্রি করেন।
+      একটি জিনিসের বিক্রয় মূল্য কত? ধাপগুলো দেখান।
+    rubric: Correct answer is ₹172.50. Steps shown, in Bengali script.
+
+  - id: bn-2
+    language: bn
+    script: beng
+    category: summarise
+    text: |
+      এই অনুচ্ছেদটি পড়ুন এবং ঠিক চারটি বাক্যে সারসংক্ষেপ লিখুন।
+
+      অনুচ্ছেদ: গ্রামের পাঠাগারটি সকাল নয়টায় খোলে। এখানে দুটি কক্ষ রয়েছে, একটি বইয়ের জন্য
+      এবং অন্যটি পড়ার জন্য। রবিবারগুলোতে একজন শিক্ষক এসে শিশুদের গল্প পড়ে শোনান। গত মাসে
+      চল্লিশটি নতুন বই এসেছে, যার বেশিরভাগই বাংলায় লেখা।
+    rubric: Exactly four sentences, in Bengali script, content matches the passage.
+
+  - id: bn-3
+    language: bn
+    script: beng
+    category: instruction
+    text: |
+      একটি দোকান কেন মজুতের হিসাব রাখবে, তা নিয়ে ঠিক তিনটি বাক্য লিখুন।
+    rubric: Exactly three sentences in Bengali script. Any Latin-script word counts against it.
+
+  # ---- Hinglish, Latin script ---------------------------------------------
+  - id: he-1
+    language: hi
+    script: deva
+    category: script-switch
+    text: |
+      Bhai, UPI se paise bhejte waqt sabse common galti kya hoti hai? Jawab Devanagari mein do,
+      Hinglish mein nahi.
+    rubric: Answered in Devanagari, in Hindi. Romanised answer scores 0.
+
+  - id: he-2
+    language: hi
+    script: latin
+    category: instruction
+    text: |
+      Mera order teen din late hai aur tracking update nahi hua. Customer ko reply karna hai —
+      polite Hinglish mein 3 line ka reply likho, aur ek refund option bhi mention karo.
+    rubric: Exactly three lines, polite, Hinglish in Roman script, mentions a refund option.
+
+  - id: he-3
+    language: hi
+    script: latin
+    category: reasoning
+    text: |
+      Ek dukaan 12 items 1800 rupaye mein kharidti hai aur 15% profit par bechti hai. Ek item ka
+      selling price kitna hoga? Steps dikhao.
+    rubric: Correct answer is ₹172.50, steps shown, in Hinglish.

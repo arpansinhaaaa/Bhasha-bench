@@ -1,0 +1,7 @@
+# Metadata only. Dependencies stay in requirements.txt (openai, pyyaml,
+# pytest - nothing else without asking); install them with pip directly.
+[project]
+name = "bhasha-bench"
+version = "0.1.0"
+description = "Indic-language harness for Sarvam Token Factory's serverless models"
+requires-python = ">=3.12"

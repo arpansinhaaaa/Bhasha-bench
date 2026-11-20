@@ -1,4 +1,4 @@
-"""Append-only JSONL storage and the run metadata file."""
+"""Append-only JSONL storage and the run metadata file, one directory per run."""
 
 import json
 from datetime import datetime
@@ -9,12 +9,19 @@ from bench.store import METADATA_NAME, RESULTS_NAME, RunStore
 def test_create_layout_and_run_id_format(tmp_path):
     run = RunStore.create(base=tmp_path)
     today = datetime.now().strftime("%Y-%m-%d")
-    assert run.directory == tmp_path / today
+    assert run.run_id.startswith(today + "T")
+    assert run.directory == tmp_path / today / run.run_id
     assert run.results_path.name == RESULTS_NAME
     assert run.metadata_path.name == METADATA_NAME
-    assert run.run_id.startswith(today + "T")
-    assert len(run.run_id) == len("YYYY-MM-DDTHHMMSS")
     assert run.directory.is_dir()
+
+
+def test_two_runs_in_the_same_second_never_share_a_directory(tmp_path):
+    first = RunStore.create(base=tmp_path)
+    second = RunStore.create(base=tmp_path)
+    assert first.run_id != second.run_id
+    assert first.directory != second.directory
+    assert second.directory.parent == first.directory.parent
 
 
 def test_rows_round_trip_in_written_order(tmp_path):
@@ -25,31 +32,31 @@ def test_rows_round_trip_in_written_order(tmp_path):
         run.append_row({"run_id": run.run_id, "model": "m", "prompt_id": "p2", "n": 2})
         run.append_row({"run_id": run.run_id, "model": "m", "prompt_id": "p3", "n": 3})
     rows = run.read_rows()
-    assert len(rows) == 3
     assert [r["prompt_id"] for r in rows] == ["p", "p2", "p3"]
     assert rows[0]["text"] == "नमस्ते"
-
-
-def test_rows_are_appended_never_rewritten(tmp_path):
-    run = RunStore.create(base=tmp_path)
-    with run:
-        run.append_row({"prompt_id": "p1", "n": 1})
-    # A later store on the same directory appends; existing lines stay put.
-    later = RunStore(run.run_id + "b", run.directory)
-    with later:
-        later.append_row({"prompt_id": "p2", "n": 2})
     raw = run.results_path.read_text(encoding="utf-8")
-    lines = raw.splitlines()
-    assert len(lines) == 2
-    assert json.loads(lines[0])["prompt_id"] == "p1"
-    assert json.loads(lines[1])["prompt_id"] == "p2"
-    # One JSON object per line, UTF-8 text kept readable, trailing newline.
     assert raw.endswith("\n")
-    assert "नमस्ते" not in raw  # this run wrote no such row
+    assert len(raw.splitlines()) == 3      # one JSON object per line
+    assert "नमस्ते" in raw                  # UTF-8 kept readable, not \u-escaped
+
+
+def test_a_second_run_never_touches_the_first_run_s_files(tmp_path):
     first = RunStore.create(base=tmp_path)
     with first:
-        first.append_row({"text": "नमस्ते"})
-    assert "नमस्ते" in first.results_path.read_text(encoding="utf-8")
+        first.append_row({"prompt_id": "p1", "n": 1})
+    first.write_metadata(models=["a"], prompt_set_hash="h" * 64)
+
+    second = RunStore.create(base=tmp_path)
+    with second:
+        second.append_row({"prompt_id": "p2", "n": 2})
+    second.write_metadata(models=["b"], prompt_set_hash="h" * 64)
+
+    assert second.directory != first.directory
+    # The first run's row and metadata survived the second run untouched.
+    assert first.read_rows() == [{"prompt_id": "p1", "n": 1}]
+    assert json.loads(first.metadata_path.read_text(encoding="utf-8"))["models"] == ["a"]
+    assert second.read_rows() == [{"prompt_id": "p2", "n": 2}]
+    assert json.loads(second.metadata_path.read_text(encoding="utf-8"))["models"] == ["b"]
 
 
 def test_metadata_holds_the_run_facts(tmp_path):
@@ -68,5 +75,5 @@ def test_metadata_holds_the_run_facts(tmp_path):
     final = json.loads(run.metadata_path.read_text(encoding="utf-8"))
     assert final["total_cost_inr"] == 0.5
     assert final["reasoning_effort_fallback_models"] == ["a", "b"]
-    # The metadata file is not rows: rewriting it is allowed.
+    # The metadata file is not rows: the run itself rewriting it is allowed.
     assert final["timestamp"] == first["timestamp"]

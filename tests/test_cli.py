@@ -8,14 +8,24 @@ from bench import cli, registry
 from fakes import FakeClient, err_action, ok_action
 
 
-def _run_dir(base):
+def _day_dir(base):
     dirs = [p for p in base.iterdir() if p.is_dir()]
     assert len(dirs) == 1
     return dirs[0]
 
 
+def _run_dirs(base):
+    return sorted(p for p in _day_dir(base).iterdir() if p.is_dir())
+
+
+def _only_run_dir(base):
+    runs = _run_dirs(base)
+    assert len(runs) == 1
+    return runs[0]
+
+
 def _rows(base):
-    lines = (_run_dir(base) / "results.jsonl").read_text(encoding="utf-8").splitlines()
+    lines = (_only_run_dir(base) / "results.jsonl").read_text(encoding="utf-8").splitlines()
     assert all(line.strip() for line in lines)
     return [json.loads(line) for line in lines]
 
@@ -42,7 +52,7 @@ def test_run_one_call_prints_one_line_and_appends_one_row(tmp_path, capsys):
     assert row["cost_inr"] == round(37 / 1e6 * entry["in"] + 11 / 1e6 * entry["out"], 6)
     assert row["finish_reason"] == "stop" and row["error_code"] is None
 
-    meta = json.loads((_run_dir(tmp_path) / "run.json").read_text(encoding="utf-8"))
+    meta = json.loads((_only_run_dir(tmp_path) / "run.json").read_text(encoding="utf-8"))
     assert meta["run_id"] == row["run_id"]
     assert meta["models"] == [model]
     assert meta["total_cost_inr"] == row["cost_inr"]
@@ -110,3 +120,26 @@ def test_parser_defaults_match_the_handoff():
     assert args.models == next(iter(registry.MODELS))  # Block G: the run default
     assert args.prompts == "all"
     assert args.reasoning_effort == "low"
+
+
+def test_two_consecutive_runs_keep_separate_run_json(tmp_path):
+    model = next(iter(registry.MODELS))
+    client = FakeClient([ok_action()])
+    args = SimpleNamespace(models=model, prompts="hi-1", reasoning_effort="low")
+    assert cli.cmd_run(args, client=client, runs_base=tmp_path) == 0
+    assert cli.cmd_run(args, client=client, runs_base=tmp_path) == 0
+
+    runs = _run_dirs(tmp_path)
+    assert len(runs) == 2
+    metas = [json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+             for run_dir in runs]
+    assert metas[0]["run_id"] != metas[1]["run_id"]
+    for run_dir, meta in zip(runs, metas):
+        # Each run.json survived, in its own directory, named by its run_id...
+        assert run_dir.name == meta["run_id"]
+        # ...with its own results.jsonl holding exactly one stamped row.
+        lines = (run_dir / "results.jsonl").read_text(encoding="utf-8").splitlines()
+        assert len(lines) == 1
+        row = json.loads(lines[0])
+        assert row["run_id"] == meta["run_id"]
+        assert row["model"] == model and row["prompt_id"] == "hi-1"

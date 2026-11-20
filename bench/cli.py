@@ -4,8 +4,9 @@
 
 Prints one line per call (model, ttft, tokens, cost - or the error the call
 carried) and a total at the end. Rows are appended to
-data/runs/<YYYY-MM-DD>/results.jsonl, one JSON object per line, never
-rewritten. SARVAM_API_KEY is read from the environment only.
+data/runs/<YYYY-MM-DD>/<run_id>/results.jsonl, one JSON object per line,
+never rewritten, in a directory this run owns. SARVAM_API_KEY is read from
+the environment only.
 """
 
 from __future__ import annotations

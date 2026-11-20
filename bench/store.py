@@ -1,15 +1,16 @@
 """Append-only run storage.
 
-Layout, per the handoff:
+Layout, per the handoff and the Day-1 review:
 
-    data/runs/<YYYY-MM-DD>/results.jsonl   one JSON object per line, append-only
-    data/runs/<YYYY-MM-DD>/run.json        run_id, timestamp, prompt-set hash,
-                                           model list, total cost
+    data/runs/<YYYY-MM-DD>/<run_id>/results.jsonl   one JSON object per line, append-only
+    data/runs/<YYYY-MM-DD>/<run_id>/run.json        run_id, timestamp, prompt-set hash,
+                                                    model list, total cost
 
-Rows are never rewritten, reordered or dropped - a run that dies halfway
-leaves every row it managed to write, each stamped with its run_id. The
-metadata file is not rows, so it may be (re)written as a run progresses:
-once when the run opens, with the total unknown, and once when it closes.
+Each run owns its directory, so no two runs ever share or overwrite a
+run.json. Rows are never rewritten, reordered or dropped - a run that dies
+halfway leaves every row it managed to write, each stamped with its run_id.
+The metadata file is not rows, so the run itself may rewrite it: once when
+the run opens, with the total unknown, and once when it closes.
 """
 
 from __future__ import annotations
@@ -36,11 +37,27 @@ class RunStore:
 
     @classmethod
     def create(cls, base: Path | None = None) -> "RunStore":
-        """A new run under data/runs/<YYYY-MM-DD>, run_id <YYYY-MM-DD>T<HHMMSS>."""
+        """A new run at data/runs/<YYYY-MM-DD>/<run_id>, never a shared one.
+
+        run_id is <YYYY-MM-DD>T<HHMMSS>. Two runs starting in the same second
+        would collide, so the second gets a -2 suffix (then -3, ...); each
+        run still owns its directory and its run.json either way.
+        """
         now = datetime.now()
-        directory = (Path(base) if base is not None else RUNS_DIR) / now.strftime("%Y-%m-%d")
-        directory.mkdir(parents=True, exist_ok=True)
-        return cls(run_id=now.strftime("%Y-%m-%dT%H%M%S"), directory=directory)
+        day = now.strftime("%Y-%m-%d")
+        stamp = now.strftime("%Y-%m-%dT%H%M%S")
+        day_dir = (Path(base) if base is not None else RUNS_DIR) / day
+        run_id = stamp
+        suffix = 2
+        while (day_dir / run_id).exists():
+            run_id = f"{stamp}-{suffix}"
+            suffix += 1
+        directory = day_dir / run_id
+        # exist_ok=False: a genuine race between two creates in one second
+        # should fail loudly, not silently share a directory.
+        directory.mkdir(parents=True, exist_ok=False)
+        return cls(run_id=run_id, directory=directory)
+
 
     # -- rows ------------------------------------------------------------------
 

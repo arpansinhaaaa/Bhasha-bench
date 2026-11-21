@@ -14,6 +14,7 @@ prompts:
       एक दुकानदार 12 वस्तुएँ ₹1,800 में खरीदता है और उन्हें 15% लाभ पर बेचता है।
       एक वस्तु का विक्रय मूल्य क्या है? चरण दिखाइए।
     rubric: Correct answer is ₹172.50. Steps shown, arithmetic right.
+    expected_value: 172.50
 
   - id: hi-2
     language: hi
@@ -26,6 +27,7 @@ prompts:
       और एक पढ़ने के लिए। रविवार को एक शिक्षक आकर बच्चों को कहानियाँ सुनाते हैं। पिछले महीने
       चालीस नई किताबें आईं, ज़्यादातर हिंदी में।
     rubric: Exactly four sentences, in Devanagari, and the content matches the passage.
+    exact_sentences: 4
 
   - id: hi-3
     language: hi
@@ -35,6 +37,8 @@ prompts:
       दुकान को स्टॉक का हिसाब क्यों रखना चाहिए — इस पर तीन बिंदु दीजिए, लेकिन जवाब रोमन लिपि
       में हिंग्लिश में लिखिए, देवनागरी में नहीं।
     rubric: Three points, in Roman script, no Devanagari characters at all.
+    exactly_three_points: true
+    forbid_deva: true
 
   # ---- Tamil ---------------------------------------------------------------
   - id: ta-1
@@ -45,6 +49,7 @@ prompts:
       ஒரு கடைக்காரர் 1,800 ரூபாய்க்கு 12 பொருட்களை வாங்குகிறார், அவற்றை 15 சதவீத லாபத்தில்
       விற்கிறார். ஒரு பொருளின் விற்பனை விலை என்ன? படிகளைக் காட்டுங்கள்.
     rubric: Correct answer is ₹172.50. Steps shown, in Tamil script.
+    expected_value: 172.50
 
   - id: ta-2
     language: ta
@@ -58,6 +63,7 @@ prompts:
       ஆசிரியர் வந்து குழந்தைகளுக்குக் கதைகளை வாசித்துக் காட்டுகிறார். கடந்த மாதம் நாற்பது புதிய
       புத்தகங்கள் வந்தன, அவற்றில் பெரும்பாலானவை தமிழில் உள்ளன.
     rubric: Exactly four sentences, in Tamil script, content matches the passage.
+    exact_sentences: 4
 
   - id: ta-3
     language: ta
@@ -67,6 +73,8 @@ prompts:
       ஒரு கடை ஏன் இருப்புப் பதிவேடு வைத்திருக்க வேண்டும் என்பதைப் பற்றிச் சரியாக மூன்று
       வாக்கியங்களில் எழுதுங்கள்.
     rubric: Exactly three sentences in Tamil script. Any Latin-script word counts against it.
+    exact_sentences: 3
+    forbid_latin: true
 
   # ---- Bengali -------------------------------------------------------------
   - id: bn-1
@@ -77,6 +85,7 @@ prompts:
       একজন দোকানদার ১,৮০০ টাকা দিয়ে ১২টি জিনিস কেনেন এবং ১৫ শতাংশ লাভে সেগুলো বিক্রি করেন।
       একটি জিনিসের বিক্রয় মূল্য কত? ধাপগুলো দেখান।
     rubric: Correct answer is ₹172.50. Steps shown, in Bengali script.
+    expected_value: 172.50
 
   - id: bn-2
     language: bn
@@ -89,6 +98,7 @@ prompts:
       এবং অন্যটি পড়ার জন্য। রবিবারগুলোতে একজন শিক্ষক এসে শিশুদের গল্প পড়ে শোনান। গত মাসে
       চল্লিশটি নতুন বই এসেছে, যার বেশিরভাগই বাংলায় লেখা।
     rubric: Exactly four sentences, in Bengali script, content matches the passage.
+    exact_sentences: 4
 
   - id: bn-3
     language: bn
@@ -97,6 +107,8 @@ prompts:
     text: |
       একটি দোকান কেন মজুতের হিসাব রাখবে, তা নিয়ে ঠিক তিনটি বাক্য লিখুন।
     rubric: Exactly three sentences in Bengali script. Any Latin-script word counts against it.
+    exact_sentences: 3
+    forbid_latin: true
 
   # ---- Hinglish, Latin script ---------------------------------------------
   - id: he-1
@@ -107,6 +119,7 @@ prompts:
       Bhai, UPI se paise bhejte waqt sabse common galti kya hoti hai? Jawab Devanagari mein do,
       Hinglish mein nahi.
     rubric: Answered in Devanagari, in Hindi. Romanised answer scores 0.
+    forbid_latin: true
 
   - id: he-2
     language: hi
@@ -116,6 +129,8 @@ prompts:
       Mera order teen din late hai aur tracking update nahi hua. Customer ko reply karna hai —
       polite Hinglish mein 3 line ka reply likho, aur ek refund option bhi mention karo.
     rubric: Exactly three lines, polite, Hinglish in Roman script, mentions a refund option.
+    exact_lines: 3
+    must_mention_any: ["refund", "wapas", "paise wapas"]
 
   - id: he-3
     language: hi
@@ -125,3 +140,4 @@ prompts:
       Ek dukaan 12 items 1800 rupaye mein kharidti hai aur 15% profit par bechti hai. Ek item ka
       selling price kitna hoga? Steps dikhao.
     rubric: Correct answer is ₹172.50, steps shown, in Hinglish.
+    expected_value: 172.50

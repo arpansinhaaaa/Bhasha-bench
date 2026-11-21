@@ -36,8 +36,33 @@ def test_both_cross_script_probes_are_present():
     assert by_id["he-1"]["script"] == "deva"
 
 
-def test_prompt_set_hash_is_over_the_raw_file():
+def test_prompt_set_hash_is_stable():
     _, first = prompt_set.load_prompts()
     _, second = prompt_set.load_prompts()
     assert first == second
     assert len(first) == 64
+
+
+def test_the_hash_covers_the_experiment_not_the_checks(tmp_path):
+    """Machine-check expectation keys are metadata: adding one must not
+    invalidate runs recorded before it existed; changing prompt text must."""
+    import hashlib
+
+    raw = prompt_set.DEFAULT_PATH.read_bytes()
+    before = prompt_set.experiment_hash(raw)
+
+    with_check_key = raw + b"    forbid_latin: true\n"
+    assert prompt_set.experiment_hash(with_check_key) == before
+
+    with_text_change = raw.replace(b"hi-1", b"hi-X")
+    assert prompt_set.experiment_hash(with_text_change) != before
+
+    # a file that never carried check keys hashes to its own raw sha256
+    keys = [k.encode() for k in prompt_set.MACHINE_CHECK_KEYS]
+    stripped_bytes = b"".join(
+        line for line in raw.splitlines(keepends=True)
+        if not any(line.strip().startswith(key + b":") for key in keys))
+    stripped = tmp_path / "stripped.yaml"
+    stripped.write_bytes(stripped_bytes)
+    assert prompt_set.experiment_hash(stripped_bytes) == \
+        hashlib.sha256(stripped_bytes).hexdigest()

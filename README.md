@@ -4,8 +4,11 @@ An Indic-language harness for Sarvam Token Factory's six serverless models:
 the same 12 Hindi / Tamil / Bengali / Hinglish prompts to every model, with
 time-to-first-token, real token counts and rupee cost recorded per call.
 
-Status: Day 2 - metrics, the cost-gated full run and the human scorer. The
-leaderboard builder and the site are not built yet.
+Status: Day 2 built - the 72-call full run of 2026-11-21 is recorded,
+metrics, the leaderboard builder, the deterministic checks and the static
+site all work. The leaderboard grades instructions and answers
+mechanically (bench/checks.py) and publishes no human quality number;
+`make score` remains, unpublished, as a human's blind spot-check.
 
 ## Quickstart
 
@@ -55,7 +58,7 @@ sending or writing anything, and `--yes` skips the prompt. Every call line
 carries the running rupee total, so a runaway is visible in the first ten
 calls. A 402 (credits) or 403 (key) stops the run and keeps what exists.
 
-## Scoring (yours, by hand)
+## Scoring (yours, by hand - a blind spot-check, not the leaderboard)
 
     make score                      # python -m bench.cli score
     python3 -m bench.cli score --run <run_id> [--force]
@@ -68,6 +71,43 @@ and it never overwrites an existing score without --force. Errored and
 empty cells are skipped - they carry their error codes in the table
 instead. Stop with q; the walk picks up where it left off.
 
+Scores stay in data/scores.csv and are deliberately never published: the
+leaderboard's Instruction and Correct columns are deterministic checks
+(bench/checks.py), and scoring is how a human spot-checks those checks,
+blind to what the automation concluded.
+
+## Publish the leaderboard
+
+    make build                        # python -m bench.cli build
+    python3 -m bench.cli build --run <run_id> [--out PATH]
+
+Aggregates a finished run into site/data/leaderboard.json - the only file
+the static page ever fetches - including two deterministic checks per
+answer: instructions followed (the constraints prompts.yaml declares,
+x/12) and answers correct (the expected value, where a prompt declares
+one, x/4 - only four prompts are value-checkable, so the denominator is
+printed, never implied). No model scored another model, and no quality
+opinion is published at all; scores.csv stays offline as the human's
+blind spot-check.
+It defaults to the newest run, so if a deliberate side run (the
+max-effort cell, say) is newer than your main run, pass `--run` for the
+main one. The builder refuses a run whose recorded prompt-set hash no
+longer matches prompts/prompts.yaml (the hash covers the experiment
+content; machine-check expectation keys are excluded, so adding those
+does not invalidate runs): the drill-down would show prompt text that did
+not produce those answers, and a complete-looking wrong table is worse
+than a refusal. Errored cells stay in the table with their error codes,
+missing cells are marked n/a, and `finish_reason: "length"` shows as
+"hit token budget" rather than as an error.
+
+    python3 -m http.server --directory site    # then open the page locally
+
+The page is one static file with no build step: `site/index.html` fetches
+`data/leaderboard.json` and renders the sortable table plus the
+per-prompt drill-down (all six answers, each with latency, tokens, cost
+and the script it actually arrived in). No framework, no webfont, no
+other URL; GitHub Pages serves it as-is.
+
 ## Metrics
 
 bench/metrics.py classifies script fidelity from the Unicode ranges in
@@ -77,7 +117,31 @@ english, mixed at the 20% lines, and computes p50/p90 latency percentiles
 and per-model cost aggregates. The blocks alone cannot tell romanised
 Hindi from English, so a small deterministic lexicon of English function
 words draws that line (>= 25% function words means English). No model ever
-judges another model here; quality stays human.
+judges another model here.
+
+## Deterministic checks
+
+bench/checks.py grades what can be graded mechanically, from the
+expectation keys each prompt declares in prompts.yaml, and nothing else.
+The full rules - including every judgement call - live in that module's
+docstring on purpose. The ones worth knowing before reading the table:
+
+- Instructions (x/12): exact sentence counts (split on danda, full stop,
+  ?/! and newline, with a two-character floor), exactly three points on
+  hi-3, exactly three lines on he-2, Devanagari forbidden on hi-3, Latin
+  forbidden on ta-3/bn-3/he-1, and a refund mention on he-2. A decimal
+  number such as 172.50 splits at its full stop and inflates the sentence
+  count - the constrained prompts contain no decimals, so the edge is
+  documented rather than smoothed over.
+- Correct (x/4): only hi-1, ta-1, bn-1 and he-3 declare the value
+  172.50, so the denominator is 4, printed as such everywhere. Devanagari
+  digits are normalised; Bengali digits are NOT (the rule is exactly that
+  narrow), so an answer that writes ১৭২.৫০ counts as incorrect even when
+  the maths is right - and "172.5" fails the two-decimal form too. Both
+  behaviours show up in the recorded run and are findings, not bugs.
+- The three summarise prompts and he-2's tone are not machine-checkable:
+  those cells render as an em dash with a "not checkable" tooltip, and
+  None never becomes False.
 
 ## What a run writes
 
@@ -134,12 +198,18 @@ model that rejects a value is probed once without the field and records
 ## Layout
 
     bench/registry.py    the six models, prices dated and sourced (Block C)
-    bench/prompts.py     loads prompts.yaml, hashes the raw bytes
+    bench/prompts.py     loads prompts.yaml; experiment hash (check keys excluded)
     bench/runner.py      one_call: Block D's request + retry policy; the fan-out
     bench/store.py       one directory per run: append-only results.jsonl + run.json
-    bench/cli.py         run --models <ids|all> --prompts <ids|all>; score
+    bench/cli.py         run / score / build
     bench/metrics.py     script classifier (Block G ranges), p50/p90, cost aggregation
+    bench/checks.py      deterministic instruction and answer checks, no model judge
+    bench/leaderboard.py a run's rows + the checks -> site/data/leaderboard.json (P8)
     bench/smoke.py       verifies the newest row against the smoke criteria
-    prompts/prompts.yaml the 12 prompts (Block B) - fixed experimental content
-    tests/               registry, prompts, runner, store, smoke, CLI; fakes, no network
+    prompts/prompts.yaml the 12 prompts (Block B) + their machine-check expectations
+    site/index.html      the leaderboard and drill-down: one static page, no build step
+    site/data/           leaderboard.json, written by `make build`, committed
+    tests/fixtures/      rows.json: 8 real rows, verbatim, the tests' only run data
+    tests/               registry, prompts, runner, store, smoke, CLI, leaderboard,
+                         checks, site; fakes, no network
     pyproject.toml      metadata: requires-python >= 3.12

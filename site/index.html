@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bhasha Bench &mdash; the Indic leaderboard for Sarvam Token Factory</title>
+<style>
+  :root {
+    --bg: #fbfaf7;
+    --card: #ffffff;
+    --ink: #23201b;
+    --muted: #6f6a60;
+    --line: #e6e1d5;
+    --accent: #b45309;
+    --accent-soft: #fdf3e7;
+    --error: #b91c1c;
+    --error-bg: #fef2f2;
+    --warn: #92400e;
+    --warn-bg: #fef3c7;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 1.25rem 4rem; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); line-height: 1.55;
+  }
+  header, main, footer { max-width: 68rem; margin: 0 auto; }
+  header { padding-top: 2.5rem; }
+  h1 { font-size: 1.9rem; margin: 0 0 .2rem; letter-spacing: -.01em; }
+  h1 .dev { color: var(--accent); }
+  .sub { margin: .2rem 0 1rem; color: var(--muted); max-width: 46rem; }
+  .meta { font-family: var(--mono); font-size: .82rem; margin: .15rem 0; color: var(--ink); }
+  .meta .muted { color: var(--muted); }
+  .disclaimer {
+    font-size: .88rem; background: var(--accent-soft); border: 1px solid var(--line);
+    border-left: 3px solid var(--accent); padding: .45rem .8rem; margin: 1rem 0 0; border-radius: 4px;
+  }
+  #banner {
+    margin: 1.25rem auto 0; padding: .55rem .8rem; max-width: 68rem;
+    background: var(--warn-bg); border: 1px solid #f0d9a8; border-radius: 4px;
+    font-size: .88rem;
+  }
+  #banner:empty, #banner[hidden] { display: none; }
+  h2 { font-size: 1.15rem; margin: 2.5rem 0 .4rem; }
+  .section-note { color: var(--muted); font-size: .9rem; margin: .1rem 0 .9rem; }
+
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th, td { padding: .5rem .6rem; border-bottom: 1px solid var(--line); text-align: right; }
+  th { font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  th:first-child, td:first-child { text-align: left; }
+  th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+  th.sortable:hover { color: var(--accent); }
+  th .arrow { color: var(--accent); font-family: var(--mono); }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td .sub { display: block; font-size: .72rem; color: var(--muted); font-family: var(--sans); margin-top: .1rem; }
+  td.model { font-family: var(--mono); font-size: .82rem; }
+  .tag {
+    display: inline-block; font-family: var(--sans); font-size: .68rem; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 3px; padding: 0 .3rem; margin-left: .35rem;
+    vertical-align: middle; white-space: nowrap;
+  }
+  .na { color: var(--muted); }
+  .prose { color: var(--muted); font-size: .9rem; max-width: 46rem; }
+
+  #prompt-list { display: flex; flex-wrap: wrap; gap: .45rem; }
+  .prompt-chip {
+    font-family: var(--mono); font-size: .8rem; background: var(--card); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 4px; padding: .3rem .6rem; cursor: pointer;
+  }
+  .prompt-chip:hover { border-color: var(--accent); color: var(--accent); }
+  .prompt-chip .cat { color: var(--muted); font-family: var(--sans); font-size: .72rem; margin-left: .45rem; }
+
+  #answers[hidden] { display: none; }
+  #drill-back {
+    font: inherit; font-size: .85rem; background: none; border: none; color: var(--accent);
+    cursor: pointer; padding: .2rem 0; margin-top: 1.2rem;
+  }
+  .drill-head { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: .8rem 1rem; margin: .6rem 0 1rem; }
+  .drill-head .id { font-family: var(--mono); color: var(--accent); font-weight: 600; }
+  .drill-head .ptext { margin: .45rem 0 .3rem; white-space: pre-wrap; }
+  .drill-head .rubric { color: var(--muted); font-size: .85rem; margin: 0; }
+  #answer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr)); gap: .8rem; }
+  .answer-card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: .7rem .85rem; display: flex; flex-direction: column; }
+  .answer-card .head { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; flex-wrap: wrap; }
+  .answer-card .name { font-family: var(--mono); font-size: .8rem; font-weight: 600; }
+  .badges { display: flex; flex-wrap: wrap; gap: .3rem; margin: .35rem 0 .1rem; }
+  .badge { font-size: .7rem; border-radius: 3px; padding: .05rem .35rem; white-space: nowrap; }
+  .badge.error { background: var(--error-bg); color: var(--error); font-family: var(--mono); }
+  .badge.warn { background: var(--warn-bg); color: var(--warn); }
+  .badge.mild { background: var(--bg); color: var(--muted); }
+  .stats { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: .76rem; margin: .3rem 0; }
+  .stats div { display: flex; justify-content: space-between; gap: 1rem; }
+  .stats span.k { color: var(--muted); font-family: var(--sans); }
+  .answer-text { white-space: pre-wrap; font-size: .92rem; line-height: 1.6; margin: .3rem 0 0; max-height: 20rem; overflow: auto; border-top: 1px solid var(--line); padding-top: .5rem; }
+
+  #empty {
+    margin-top: 2rem; background: var(--card); border: 1px dashed var(--line);
+    border-radius: 6px; padding: 1.4rem 1.6rem; max-width: 46rem; font-size: .95rem;
+  }
+  #empty code { font-family: var(--mono); font-size: .85rem; }
+  #loading { margin-top: 1.5rem; }
+  .skel { height: 1.6rem; background: linear-gradient(90deg, #efeadf, #f7f3ea, #efeadf); border-radius: 4px; margin-bottom: .5rem; animation: breathe 1.2s ease-in-out infinite; }
+  @keyframes breathe { 50% { opacity: .55; } }
+  noscript p { color: var(--error); }
+  footer { margin-top: 3rem; border-top: 1px solid var(--line); padding-top: 1rem; color: var(--muted); font-size: .82rem; }
+  footer p { margin: .25rem 0; }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Bhasha <span class="dev">Bench</span></h1>
+  <p class="sub">The same 12 Hindi, Tamil, Bengali and Hinglish prompts sent to every
+    serverless Sarvam Token Factory model &mdash; with the script the answer actually
+    arrived in, the latency, and the rupee cost, measured per call.</p>
+  <p class="meta" id="meta-run"></p>
+  <p class="meta" id="meta-prices"></p>
+  <p class="disclaimer" id="disclaimer"></p>
+</header>
+
+<div id="banner"></div>
+
+<main>
+  <section id="board">
+    <noscript><p>This page needs JavaScript to read its own data file; it calls no other address.</p></noscript>
+    <div id="loading" aria-label="loading">
+      <div class="skel"></div><div class="skel"></div><div class="skel"></div>
+      <div class="skel"></div><div class="skel"></div><div class="skel"></div>
+    </div>
+    <div id="empty" hidden>
+      <p><strong>No runs yet.</strong> <code>make run</code> takes about 90 seconds and
+        costs about ₹10.</p>
+      <p>Once a run and <code>make build</code> have written
+        <code>data/leaderboard.json</code> next to this page, the table appears here.</p>
+    </div>
+    <div id="table-wrap" hidden>
+      <table id="lb">
+        <thead><tr id="lb-head"></tr></thead>
+        <tbody id="lb-body"></tbody>
+      </table>
+      <p class="prose" id="prose"></p>
+    </div>
+  </section>
+
+  <section id="drill" hidden>
+    <h2>Prompt drill-down</h2>
+    <p class="section-note">One prompt, every answer side by side &mdash; latency, tokens,
+      cost and the script each answer actually used. This is the screen to screenshot.</p>
+    <div id="prompt-list"></div>
+    <div id="answers" hidden>
+      <button id="drill-back" type="button">&larr; all prompts</button>
+      <div class="drill-head" id="drill-head"></div>
+      <div id="answer-grid"></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p id="foot-prices"></p>
+  <p>Latency was measured from one machine on one connection; it compares models under
+    identical conditions, it does not promise production timing. The page never calls the
+    API &mdash; it reads one committed JSON file.</p>
+  <p>To test a prompt of your own: clone the repo, add your prompt to
+    <code>prompts/prompts.yaml</code>, export <code>SARVAM_API_KEY</code> and
+    <code>make run</code>.</p>
+</footer>
+
+<script>
+"use strict";
+const DATA_URL = "data/leaderboard.json";
+const LABEL_NAMES = {
+  native_script: "native", romanized: "romanized", english: "english",
+  mixed: "mixed", other_script: "other script", empty: "no letters",
+};
+const COLUMNS = [
+  { key: "model", label: "Model", numeric: false },
+  { key: "fidelity_mean_pct", label: "Script fidelity", numeric: true },
+  { key: "ttft_p50_ms", label: "TTFT p50", numeric: true },
+  { key: "latency_p50_ms", label: "Latency p50", numeric: true },
+  { key: "cost_inr_mean", label: "\u20B9 per answer", numeric: true },
+  { key: "instructions_passed", label: "Instructions", numeric: true },
+  { key: "correct_passed", label: "Correct", numeric: true },
+  { key: "errors", label: "Errors", numeric: true },
+];
+
+let LB = null;
+let sortKey = null;
+let sortDir = 1;   // 1 ascending, -1 descending; nulls sort last either way
+
+const $ = (id) => document.getElementById(id);
+
+function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function fmtMs(v) { return v === null || v === undefined ? "n/a" : v.toLocaleString("en-IN") + " ms"; }
+function fmtPct(v) { return v === null || v === undefined ? "n/a" : v.toFixed(1) + "%"; }
+function fmtMoney(v) {
+  if (v === null || v === undefined) return "n/a";
+  return "\u20B9" + (v >= 1 ? v.toFixed(2) : v.toFixed(4));
+}
+function shortHash(h) { return (h || "").slice(0, 10) + "\u2026"; }
+
+function renderMeta() {
+  $("meta-run").append(
+    "run ", el("strong", null, LB.run_date || LB.run_id),
+    "  \u00B7  prompt set ", el("span", "muted", shortHash(LB.prompt_set_hash)),
+    " (full hash in this page's source data)",
+    "  \u00B7  n per cell ", el("strong", null, String(LB.n_per_cell)),
+    "  \u00B7  total ", el("strong", null, fmtMoney(LB.total_cost_inr)),
+  );
+  const intro = (LB.introductory_models || []).length;
+  $("meta-prices").append(
+    "prices as of ", el("strong", null, LB.prices_read_on),
+    " from the Token Factory pricing page",
+    intro ? el("span", null, " \u00B7 " + intro + " model" + (intro > 1 ? "s" : "") + " on introductory rates (tagged in the table)") : "",
+  );
+  $("disclaimer").textContent =
+    (LB.disclaimer || "n=1 per cell; directional, not definitive.") +
+    " Instruction and answer checks are automated and deterministic; " +
+    "no model scored another model.";
+  $("foot-prices").textContent =
+    "Prices dated " + LB.prices_read_on + ", excluding GST, from " + LB.pricing_url +
+    ". Introductory rates run through the end of 2026; every rupee figure and the price ranking may change after that.";
+}
+
+function renderBanner() {
+  const banner = $("banner");
+  banner.textContent = "";
+  if (LB.missing_cells > 0) {
+    banner.textContent = "This run is missing " + LB.missing_cells +
+      " of its cells \u2014 it stopped before finishing. Cells without data are marked n/a; nothing is hidden or averaged over.";
+    banner.hidden = false;
+  } else {
+    banner.hidden = true;
+  }
+}
+
+function summaryFor(model) {
+  return LB.models_summary[model] || {
+    calls: 0, errors: 0, costed_cells: 0, cost_inr_total: null, cost_inr_mean: null,
+    ttft_p50_ms: null, ttft_p90_ms: null, latency_p50_ms: null,
+    fidelity_mean_pct: null, fidelity_labels: {},
+    instructions_followed: { passed: 0, total: 0 },
+    answers_correct: { passed: 0, checkable: 0 },
+    truncated_cells: 0,
+  };
+}
+
+function fidelitySub(labels) {
+  const parts = [];
+  for (const [label, count] of Object.entries(labels)) {
+    parts.push(count + " " + (LABEL_NAMES[label] || label));
+  }
+  return parts.length ? parts.join(" \u00B7 ") : "no answers to count";
+}
+
+function renderTableHead() {
+  const head = $("lb-head");
+  head.textContent = "";
+  for (const col of COLUMNS) {
+    const th = el("th", "sortable", col.label);
+    th.setAttribute("role", "columnheader");
+    th.setAttribute("scope", "col");
+    if (sortKey === col.key) {
+      th.append(" ", el("span", "arrow", sortDir === 1 ? "\u2191" : "\u2193"));
+      th.setAttribute("aria-sort", sortDir === 1 ? "ascending" : "descending");
+    }
+    th.addEventListener("click", () => {
+      if (sortKey === col.key) { sortDir = -sortDir; } else { sortKey = col.key; sortDir = 1; }
+      renderTableHead();
+      renderTableBody();
+    });
+    head.appendChild(th);
+  }
+}
+
+function sortedModels() {
+  const rows = (LB.models || []).map((model) => {
+    const s = summaryFor(model);
+    return {
+      model, ...s,
+      instructions_passed: s.instructions_followed.passed,
+      instructions_total: s.instructions_followed.total,
+      correct_passed: s.answers_correct.passed,
+      correct_total: s.answers_correct.checkable,
+    };
+  });
+  if (!sortKey) return rows;
+  const col = COLUMNS.find((c) => c.key === sortKey);
+  rows.sort((a, b) => {
+    const av = a[sortKey], bv = b[sortKey];
+    const aNull = av === null || av === undefined;
+    const bNull = bv === null || bv === undefined;
+    if (aNull && bNull) return 0;
+    if (aNull) return 1;          // nulls last, whichever way the arrow points
+    if (bNull) return -1;
+    if (col && !col.numeric) return av < bv ? -1 : av > bv ? 1 : 0;
+    return av < bv ? -1 : av > bv ? 1 : 0;
+  });
+  if (sortDir === -1) rows.reverse();
+  return rows;
+}
+
+function renderTableBody() {
+  const body = $("lb-body");
+  body.textContent = "";
+  for (const row of sortedModels()) {
+    const tr = document.createElement("tr");
+
+    const nameTd = el("td", "model", row.model);
+    if ((LB.introductory_models || []).includes(row.model)) {
+      nameTd.appendChild(el("span", "tag", "introductory"));
+    }
+    if (row.truncated_cells > 0) {
+      nameTd.appendChild(el("span", "tag", row.truncated_cells + " hit token budget"));
+    }
+    tr.appendChild(nameTd);
+
+    const fid = el("td", "num", fmtPct(row.fidelity_mean_pct));
+    fid.appendChild(el("span", "sub", fidelitySub(row.fidelity_labels || {})));
+    tr.appendChild(fid);
+
+    tr.appendChild(el("td", "num", fmtMs(row.ttft_p50_ms)));
+    tr.appendChild(el("td", "num", fmtMs(row.latency_p50_ms)));
+    tr.appendChild(el("td", "num", fmtMoney(row.cost_inr_mean)));
+
+    const ins = el("td", "num", row.instructions_passed + "/" + row.instructions_total);
+    ins.appendChild(el("span", "sub", "constraints met"));
+    tr.appendChild(ins);
+
+    const cor = el("td", "num", row.correct_passed + "/" + row.correct_total);
+    cor.appendChild(el("span", "sub", "of " + row.correct_total + " checkable prompt" + (row.correct_total === 1 ? "" : "s")));
+    tr.appendChild(cor);
+
+    tr.appendChild(el("td", "num", String(row.errors)));
+    body.appendChild(tr);
+  }
+  $("prose").textContent =
+    "One run of the fixed 12-prompt set to " + (LB.models || []).length +
+    " serverless models, " + LB.run_date + ", total " + fmtMoney(LB.total_cost_inr) +
+    ". " + LB.disclaimer + " Instruction and answer checks are automated and " +
+    "deterministic; no model scored another model. Sort any column.";
+}
+
+function renderPromptList() {
+  const list = $("prompt-list");
+  list.textContent = "";
+  for (const prompt of LB.prompts || []) {
+    const chip = el("button", "prompt-chip", prompt.id);
+    chip.type = "button";
+    chip.appendChild(el("span", "cat",
+      prompt.language + " \u00B7 " + prompt.script + " \u00B7 " + prompt.category));
+    chip.addEventListener("click", () => showDrill(prompt));
+    list.appendChild(chip);
+  }
+}
+
+function badgesFor(cell) {
+  const badges = el("div", "badges");
+  if (cell.error_code) badges.appendChild(el("span", "badge error", cell.error_code));
+  if (cell.finish_reason === "length") badges.appendChild(el("span", "badge warn", "hit token budget"));
+  if (cell.retried) badges.appendChild(el("span", "badge mild", "retried, " + cell.attempts + " attempts"));
+  return badges;
+}
+
+function statLine(parent, key, value) {
+  const line = el("div");
+  line.appendChild(el("span", "k", key));
+  line.appendChild(value instanceof Node ? value : el("span", null, value));
+  parent.appendChild(line);
+}
+
+function checkWord(value) {
+  if (value === null || value === undefined) {
+    const dash = el("span", null, "\u2014");   // em dash: nothing to check
+    dash.title = "not checkable";
+    return dash;
+  }
+  return value ? "correct" : "incorrect";
+}
+
+function showDrill(prompt) {
+  const head = $("drill-head");
+  head.textContent = "";
+  head.appendChild(el("span", "id", prompt.id + "  "));
+  head.appendChild(el("span", null,
+    prompt.language + " \u00B7 asks for " + prompt.script + " \u00B7 " + prompt.category));
+  head.appendChild(el("p", "ptext", prompt.text));
+  head.appendChild(el("p", "rubric", "rubric: " + prompt.rubric));
+
+  const byModel = {};
+  for (const cell of prompt.cells) byModel[cell.model] = cell;
+
+  const grid = $("answer-grid");
+  grid.textContent = "";
+  for (const model of LB.models || []) {
+    const card = el("div", "answer-card");
+    const cardHead = el("div", "head");
+    cardHead.appendChild(el("span", "name", model));
+    if ((LB.introductory_models || []).includes(model)) {
+      cardHead.appendChild(el("span", "tag", "introductory"));
+    }
+    card.appendChild(cardHead);
+
+    const cell = byModel[model];
+    if (!cell) {
+      card.appendChild(el("div", "badges",
+        el("span", "badge warn", "n/a \u2014 no row in this run")));
+      card.appendChild(el("p", "answer-text na",
+        "This cell never ran: the run stopped before this model answered this prompt. Nothing is invented to fill it."));
+      grid.appendChild(card);
+      continue;
+    }
+
+    card.appendChild(badgesFor(cell));
+    const stats = el("div", "stats");
+    statLine(stats, "effort", cell.reasoning_effort === null || cell.reasoning_effort === undefined ? "not sent" : cell.reasoning_effort);
+    statLine(stats, "ttft / total", fmtMs(cell.ttft_ms) + " / " + fmtMs(cell.total_ms));
+    statLine(stats, "tokens in / out",
+      cell.prompt_tokens === null || cell.prompt_tokens === undefined
+        ? "n/a" : cell.prompt_tokens + " / " + cell.completion_tokens);
+    statLine(stats, "cost", fmtMoney(cell.cost_inr));
+    statLine(stats, "script", (LABEL_NAMES[cell.fidelity_label] || cell.fidelity_label) +
+      " (" + (cell.fidelity_label === "empty" ? "no letters" : fmtPct(cell.fidelity_pct)) + ")");
+    statLine(stats, "answer", checkWord(cell.answer_correct));
+    statLine(stats, "instructions", cell.constraints_met ? "followed" : "not followed");
+    card.appendChild(stats);
+
+    const text = el("p", "answer-text", cell.text);
+    if (!cell.text.trim()) text.classList.add("na");
+    card.appendChild(text);
+    grid.appendChild(card);
+  }
+  $("prompt-list").hidden = true;
+  $("answers").hidden = false;
+  $("answers").scrollIntoView({ block: "start" });
+}
+
+function hideDrill() {
+  $("answers").hidden = true;
+  $("prompt-list").hidden = false;
+}
+
+function showEmpty() {
+  $("loading").hidden = true;
+  $("table-wrap").hidden = true;
+  $("drill").hidden = true;
+  $("empty").hidden = false;
+  $("meta-run").textContent = "";
+  $("meta-prices").textContent = "";
+  $("disclaimer").textContent = "";
+  const banner = $("banner");
+  banner.textContent = "";
+  banner.hidden = true;
+}
+
+function showBoard() {
+  $("loading").hidden = true;
+  $("empty").hidden = true;
+  $("table-wrap").hidden = false;
+  $("drill").hidden = false;
+  renderMeta();
+  renderBanner();
+  renderTableHead();
+  renderTableBody();
+  renderPromptList();
+}
+
+async function init() {
+  try {
+    const res = await fetch(DATA_URL);
+    if (!res.ok) throw new Error("HTTP " + res.status + " reading " + DATA_URL);
+    LB = await res.json();
+  } catch (err) {
+    showEmpty();
+    return;
+  }
+  if (!LB.models || !LB.models_summary || !Array.isArray(LB.prompts)) {
+    showEmpty();
+    return;
+  }
+  showBoard();
+}
+
+document.getElementById("drill-back").addEventListener("click", hideDrill);
+init();
+</script>
+</body>
+</html>

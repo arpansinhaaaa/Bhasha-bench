@@ -1,7 +1,7 @@
 # Bhasha Bench. Python 3.12; see requirements.txt for the three dependencies.
 PYTHON := $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python3)
 
-.PHONY: test run smoke smoke-check score
+.PHONY: test run smoke smoke-check score build
 
 # No network, no API key: the suite runs against fake clients.
 test:
@@ -26,3 +26,9 @@ smoke-check:
 # what you type; nothing is invented, and q stops for later resuming.
 score:
 	$(PYTHON) -m bench.cli score
+
+# Publish a finished run to site/data/leaderboard.json for the static page.
+# Defaults to the newest run; --run picks another. Score first: an unscored
+# run publishes with quality n/a, never with an invented number.
+build:
+	$(PYTHON) -m bench.cli build

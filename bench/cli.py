@@ -2,6 +2,7 @@
 
     python -m bench.cli run [--dry-run] [--yes] --models <ids|all> --prompts <ids|all>
     python -m bench.cli score [--run RUN_ID] [--force]
+    python -m bench.cli build [--run RUN_ID] [--out PATH]
 
 `run` prints the projected cost ceiling first and asks before it spends
 anything. It prints one line per call (model, ttft, tokens, cost, running
@@ -9,8 +10,13 @@ total - or the error the call carried) and a total at the end. Rows are
 appended to data/runs/<YYYY-MM-DD>/<run_id>/results.jsonl, one JSON object
 per line, never rewritten, in a directory this run owns.
 `score` shows prompt, rubric and answer and records the 0/1/2 a human
-types; it never invents a score. SARVAM_API_KEY is read from the
-environment only.
+types; it never invents a score, and it stays offline in data/scores.csv
+as a human blind spot-check. SARVAM_API_KEY is read from the environment
+only.
+`build` aggregates a finished run into site/data/leaderboard.json - the
+only file the static page fetches - including the deterministic
+instruction and answer checks. It refuses a run whose prompt set no longer
+matches prompts.yaml, and it publishes no quality score at all.
 """
 
 from __future__ import annotations
@@ -22,6 +28,7 @@ import os
 import sys
 from pathlib import Path
 
+from bench import leaderboard
 from bench import prompts as prompt_set
 from bench import registry
 from bench import runner
@@ -66,6 +73,15 @@ def build_parser() -> argparse.ArgumentParser:
     score_cmd.add_argument(
         "--force", action="store_true",
         help="ask again for answers that already carry a score")
+    build_cmd = commands.add_parser(
+        "build", help="aggregate a run plus scores.csv into "
+                       "site/data/leaderboard.json for the static page")
+    build_cmd.add_argument(
+        "--run", metavar="RUN_ID", default=None,
+        help="the run to publish [default: the newest run]")
+    build_cmd.add_argument(
+        "--out", metavar="PATH", default=None,
+        help="output path [default: site/data/leaderboard.json]")
     return parser
 
 
@@ -75,6 +91,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_run(args)
     if args.command == "score":
         return cmd_score(args)
+    if args.command == "build":
+        return cmd_build(args)
     return 2  # unreachable: subparsers are required
 
 
@@ -351,6 +369,64 @@ def _write_scores(path, scores: dict) -> None:
         writer.writerow(["run_id", "model", "prompt_id", "score"])
         for (run_id, model, prompt_id), score in sorted(scores.items()):
             writer.writerow([run_id, model, prompt_id, score])
+
+
+# -- build: rows + scores.csv -> the page's data file -------------------------
+
+
+def cmd_build(args, runs_base=None, out_path=None) -> int:
+    """Write site/data/leaderboard.json from a run's rows.
+
+    The payload is deterministic arithmetic over rows the API produced -
+    including the instruction and answer checks from bench.checks, which no
+    model had a hand in scoring. data/scores.csv and the `score` command are
+    untouched and stay unpublished: they are a human's blind spot-check.
+    `runs_base` and `out_path` are test seams; the real command reads the
+    real run and writes the real site path.
+    """
+    run_dir = _find_run_dir(args.run, base=runs_base)
+    if run_dir is None:
+        print(f"no run found for {args.run or '(newest)'}", file=sys.stderr)
+        return 2
+    try:
+        prompts, prompt_set_hash = prompt_set.load_prompts()
+    except FileNotFoundError:
+        print(f"prompt set not found at {prompt_set.DEFAULT_PATH}", file=sys.stderr)
+        return 2
+
+    try:
+        payload = leaderboard.build_leaderboard(
+            run_dir, prompts, prompt_set_hash)
+    except leaderboard.PromptSetChanged as exc:
+        print(exc, file=sys.stderr)
+        return 2
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        return 2
+
+    target = leaderboard.write_leaderboard(payload, out_path or args.out)
+    print(f"built run {payload['run_id']} · "
+          f"{len(payload['prompts'])} prompt(s) · {len(payload['models'])} model(s) · "
+          f"total {_rupees(payload['total_cost_inr'])} · prices as of "
+          f"{payload['prices_read_on']}")
+    print(f"checks are deterministic - no model scored another model")
+    print(f"{'model':<28}{'instructions':>13}{'correct':>9}")
+    for model in payload["models"]:
+        entry = payload["models_summary"].get(model, {})
+        instructions = entry.get("instructions_followed", {"passed": 0, "total": 0})
+        answers = entry.get("answers_correct", {"passed": 0, "checkable": 0})
+        ins = f"{instructions['passed']}/{instructions['total']}"
+        ans = f"{answers['passed']}/{answers['checkable']}"
+        print(f"{model:<28}{ins:>13}{ans:>9}")
+    errors = sum(entry["errors"] for entry in payload["models_summary"].values())
+    if payload["missing_cells"]:
+        print(f"note: {payload['missing_cells']} cell(s) never ran; "
+              "the page marks them n/a, it never hides them")
+    if errors:
+        print(f"note: {_plural(errors, 'errored cell')} stay in the table "
+              "with their error codes")
+    print(f"wrote {target}")
+    return 0
 
 
 if __name__ == "__main__":

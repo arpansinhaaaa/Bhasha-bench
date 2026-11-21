@@ -1,215 +1,176 @@
 # Bhasha Bench
 
-An Indic-language harness for Sarvam Token Factory's six serverless models:
-the same 12 Hindi / Tamil / Bengali / Hinglish prompts to every model, with
-time-to-first-token, real token counts and rupee cost recorded per call.
+An Indic-language benchmark for Sarvam Token Factory's six serverless models.
+The same 12 Hindi, Tamil, Bengali and Hinglish prompts go to every model,
+and each answer is measured on what actually matters to a developer picking
+a model: did it answer in the script that was asked for, how fast did the
+first token arrive, what did it cost in rupees, and did it follow the
+instructions. A one-page static leaderboard presents it all, and every
+number on it is reproducible from a clean clone for the price of one run.
 
-Status: Day 2 built - the 72-call full run of 2026-11-21 is recorded,
-metrics, the leaderboard builder, the deterministic checks and the static
-site all work. The leaderboard grades instructions and answers
-mechanically (bench/checks.py) and publishes no human quality number;
-`make score` remains, unpublished, as a human's blind spot-check.
+## What it measures
+
+- **Script fidelity** - the share of an answer's letters in the requested
+  output script, from Unicode ranges (Devanagari, Tamil, Bengali, Latin),
+  with labels for romanised, English and mixed drift. Deterministic, no
+  model judges another model.
+- **Latency** - time-to-first-token and total time, measured from the
+  streaming call, reported as p50/p90 per model.
+- **Cost** - computed from the API's own `usage` token counts times the
+  dated registry prices. Never estimated from character counts.
+- **Instructions** - whether the answer met the machine-checkable
+  constraints its prompt declares (sentence counts, line counts, script
+  bans, a required mention). x/12.
+- **Correct** - whether the answer contains the expected value, on the four
+  prompts that declare one. x/4.
+
+## The recorded run
+
+Run `2026-11-21T165953`: 12 prompts x 6 models, 72 calls, 0 errors,
+total cost **₹3.717271**. Live version: serve `site/` and open the page.
+
+| model | fidelity | TTFT p50 | ₹ per answer | instructions | correct |
+| --- | --- | --- | --- | --- | --- |
+| sarvam-105b | 93.7% | 4,804 ms | ₹0.0255 | 12/12 | 4/4 |
+| sarvam-105b-conversations | 97.7% | 786 ms | ₹0.0040 | 11/12 | 3/4 |
+| glm5.3 | 95.4% | 2,125 ms | ₹0.1769 | 7/12 | 4/4 |
+| glm5.3-flash | 94.6% | 3,062 ms | ₹0.0181 | 6/12 | 3/4 |
+| gemma4 | 96.4% | 2,245 ms | ₹0.0632 | 6/12 | 2/4 |
+| deepseekv4.1-flash-1017 | 96.6% | 2,536 ms | ₹0.0221 | 11/12 | 3/4 |
+
+Reading notes:
+
+- n=1 per cell; directional, not definitive.
+- Prices are as of 2026-11-20 from
+  https://www.sarvam.ai/token-factory/pricing, excluding GST.
+  `sarvam-105b`, `sarvam-105b-conversations` and
+  `deepseekv4.1-flash-1017` are on introductory rates through the end of
+  2026, so the ranking may flip when those end.
+- The "correct" column is strict by design: Devanagari digits are
+  normalised to ASCII but Bengali digits are not, and the value must
+  appear in its two-decimal form (`172.50`). Four answers that wrote
+  ১৭২.৫০ or `172.5` count as incorrect - their arithmetic was right, the
+  form was not. These are findings about formatting behaviour, not
+  mistakes in the maths.
 
 ## Quickstart
 
     python3 -m venv .venv && source .venv/bin/activate
     pip install -r requirements.txt
-    export SARVAM_API_KEY=...        # read from the env only; .env is gitignored
-    python3 -m bench.cli run --models all --prompts all
+    export SARVAM_API_KEY=...        # read from the environment only; .env is gitignored
+    make run                          # 72 calls, concurrency 3; prints a cost projection first
 
-A full run is 72 calls at concurrency 3, inside Pay-as-you-go rate limits
-(50-60 req/min, enforced per account). One prompt to one model:
+Then publish and view the leaderboard:
+
+    make build                        # writes site/data/leaderboard.json
+    python3 -m http.server --directory site
+    # open http://localhost:8000
+
+A full run stays well inside Pay-as-you-go rate limits (50-60 req/min,
+enforced per account). One prompt to one model:
 
     python3 -m bench.cli run --models sarvam-105b --prompts hi-1
 
-Python 3.12 or newer (`pyproject.toml` pins `requires-python = ">=3.12"`).
-This build was executed on Python 3.14.7 and uses nothing 3.13+-specific,
-so 3.12 runs it unchanged.
+## Commands
 
-Model IDs and prices live only in `bench/registry.py`, dated and sourced
-there. The prompt set is `prompts/prompts.yaml`, fixed content; if a prompt
-looks wrong, report it - do not edit it in place.
+| command | what it does |
+| --- | --- |
+| `make test` | the full test suite - no network, no API key |
+| `make run` | every prompt to every model, with a cost gate before spending |
+| `make smoke` | one live call to the default model (needs the key) |
+| `make smoke-check` | verifies the newest recorded row and prints it |
+| `make score` | human 0-2 scoring walk over the answers (optional, offline) |
+| `make build` | aggregates the newest run into `site/data/leaderboard.json` |
 
-## Test
+`build` defaults to the newest run; pass `--run <run_id>` to publish another
+one (deliberate side runs, for example).
 
-    make test
+## How the harness works
 
-No network, no API key: the suite runs against fake clients.
+    prompts/prompts.yaml  -->  bench/runner (streaming, usage capture)  -->  rows, one JSON object per line
+                                    |                                            |
+                             bench/registry (prices)                 bench/metrics + bench/checks
+                                    |                                            |
+                                    '---- cost in INR per call ---->  site/data/leaderboard.json  -->  site/index.html
 
-## Live smoke test (run it yourself, with SARVAM_API_KEY exported)
+- Model IDs and prices live only in `bench/registry.py`, dated and sourced
+  by URL. Nothing else in the codebase types a model ID or a price.
+- The prompt set is fixed content in `prompts/prompts.yaml`, twelve
+  prompts with language, script, category, rubric and machine-checkable
+  expectations. Every run records the prompt-set hash, and `build` refuses
+  a run whose hash does not match the file - the drill-down would
+  otherwise show prompt text that did not produce those answers.
+- Calls are streamed (`include_usage`), bounded at `max_tokens=1500`, sent
+  at `reasoning_effort=low`, three in flight. `429` and `503` retry with
+  exponential backoff (max 4 attempts, `Retry-After` honoured); a failed
+  call is recorded as a row carrying its error code, never dropped.
+  `402`/`403` stop the run and keep what exists.
+- A missing usage block stores nulls - the cost column shows n/a, never a
+  guess. A model that rejects a `reasoning_effort` value is retried once
+  without the field and records `reasoning_effort: null`.
+- Rows are append-only, one file per run under
+  `data/runs/<date>/<run_id>/`; no run ever rewrites another's rows.
+- The site never calls the API. It fetches one committed JSON file; no
+  framework, no build step, no external URL. GitHub Pages serves it as-is.
 
-    make smoke            # python -m bench.cli run --prompts hi-1
-                          # (the registry's default model, sarvam-105b)
-    make smoke-check      # verifies the newest row and prints it verbatim
+## The deterministic checks
 
-The row must show: ttft_ms > 0, total_ms >= ttft_ms, non-empty Devanagari
-text answering the Rs 172.50 question, finish_reason "stop", and a cost_inr
-that recomputes from the token counts and `bench/registry.py`. smoke-check
-prints PASS/FAIL per criterion. If anything fails, report what you see and
-stop; the harness never runs the live call itself.
+`bench/checks.py` grades what can be graded mechanically, from the
+expectation keys each prompt declares, and nothing else: `answer_correct`
+(True / False / None) and `constraints_met` (bool). The summarise prompts
+and one tone instruction are not machine-checkable - those cells render as
+an em dash with a "not checkable" tooltip, and None never becomes False.
 
-## Cost projection and confirmation
+Every rule and judgement call lives in the module's docstring, visible on
+purpose: sentences split on the danda, full stop, ?/! and newline with a
+two-character floor; "three points" uses the same count; lines are
+non-empty lines; values are matched after Devanagari-digit normalisation
+and currency/comma/space stripping, in two-decimal form. No model ever
+scores another model here.
 
-`run` prints a projected cost ceiling before it spends anything - from the
-registry's prices and the prompt set: completions capped at
-max_tokens=1500, input over-estimated at one token per prompt character.
-It then asks y/N; `--dry-run` prints the same projection and exits without
-sending or writing anything, and `--yes` skips the prompt. Every call line
-carries the running rupee total, so a runaway is visible in the first ten
-calls. A 402 (credits) or 403 (key) stops the run and keeps what exists.
+## Scoring: a blind spot-check
 
-## Scoring (yours, by hand - a blind spot-check, not the leaderboard)
-
-    make score                      # python -m bench.cli score
-    python3 -m bench.cli score --run <run_id> [--force]
-
-Walks the answers that carry no score yet, shows each with its prompt and
-its rubric line, and records the 0, 1 or 2 you type into
-data/scores.csv, keyed by run_id + model + prompt_id. The score comes only
-from what you type: this command never invents, defaults or estimates one,
-and it never overwrites an existing score without --force. Errored and
-empty cells are skipped - they carry their error codes in the table
-instead. Stop with q; the walk picks up where it left off.
-
-Scores stay in data/scores.csv and are deliberately never published: the
-leaderboard's Instruction and Correct columns are deterministic checks
-(bench/checks.py), and scoring is how a human spot-checks those checks,
-blind to what the automation concluded.
-
-## Publish the leaderboard
-
-    make build                        # python -m bench.cli build
-    python3 -m bench.cli build --run <run_id> [--out PATH]
-
-Aggregates a finished run into site/data/leaderboard.json - the only file
-the static page ever fetches - including two deterministic checks per
-answer: instructions followed (the constraints prompts.yaml declares,
-x/12) and answers correct (the expected value, where a prompt declares
-one, x/4 - only four prompts are value-checkable, so the denominator is
-printed, never implied). No model scored another model, and no quality
-opinion is published at all; scores.csv stays offline as the human's
-blind spot-check.
-It defaults to the newest run, so if a deliberate side run (the
-max-effort cell, say) is newer than your main run, pass `--run` for the
-main one. The builder refuses a run whose recorded prompt-set hash no
-longer matches prompts/prompts.yaml (the hash covers the experiment
-content; machine-check expectation keys are excluded, so adding those
-does not invalidate runs): the drill-down would show prompt text that did
-not produce those answers, and a complete-looking wrong table is worse
-than a refusal. Errored cells stay in the table with their error codes,
-missing cells are marked n/a, and `finish_reason: "length"` shows as
-"hit token budget" rather than as an error.
-
-    python3 -m http.server --directory site    # then open the page locally
-
-The page is one static file with no build step: `site/index.html` fetches
-`data/leaderboard.json` and renders the sortable table plus the
-per-prompt drill-down (all six answers, each with latency, tokens, cost
-and the script it actually arrived in). No framework, no webfont, no
-other URL; GitHub Pages serves it as-is.
-
-## Metrics
-
-bench/metrics.py classifies script fidelity from the Unicode ranges in
-handoff Block G - deva U+0900-U+097F, taml U+0B80-U+0BFF, beng
-U+0980-U+09FF, latin a-z A-Z - with labels native_script, romanized,
-english, mixed at the 20% lines, and computes p50/p90 latency percentiles
-and per-model cost aggregates. The blocks alone cannot tell romanised
-Hindi from English, so a small deterministic lexicon of English function
-words draws that line (>= 25% function words means English). No model ever
-judges another model here.
-
-## Deterministic checks
-
-bench/checks.py grades what can be graded mechanically, from the
-expectation keys each prompt declares in prompts.yaml, and nothing else.
-The full rules - including every judgement call - live in that module's
-docstring on purpose. The ones worth knowing before reading the table:
-
-- Instructions (x/12): exact sentence counts (split on danda, full stop,
-  ?/! and newline, with a two-character floor), exactly three points on
-  hi-3, exactly three lines on he-2, Devanagari forbidden on hi-3, Latin
-  forbidden on ta-3/bn-3/he-1, and a refund mention on he-2. A decimal
-  number such as 172.50 splits at its full stop and inflates the sentence
-  count - the constrained prompts contain no decimals, so the edge is
-  documented rather than smoothed over.
-- Correct (x/4): only hi-1, ta-1, bn-1 and he-3 declare the value
-  172.50, so the denominator is 4, printed as such everywhere. Devanagari
-  digits are normalised; Bengali digits are NOT (the rule is exactly that
-  narrow), so an answer that writes ১৭২.৫০ counts as incorrect even when
-  the maths is right - and "172.5" fails the two-decimal form too. Both
-  behaviours show up in the recorded run and are findings, not bugs.
-- The three summarise prompts and he-2's tone are not machine-checkable:
-  those cells render as an em dash with a "not checkable" tooltip, and
-  None never becomes False.
-
-## What a run writes
-
-    data/runs/<YYYY-MM-DD>/<run_id>/results.jsonl   one JSON object per line, append-only
-    data/runs/<YYYY-MM-DD>/<run_id>/run.json        run_id, timestamp, prompt-set hash,
-                                                    model list, total cost
-
-Each row: run_id, model, prompt_id, reasoning_effort, ttft_ms, total_ms,
-prompt_tokens, completion_tokens, cached_tokens, cost_inr, text,
-finish_reason, error_code, retried, attempts. A failed call is a row carrying
-its error code, never a dropped line. A missing usage block means nulls,
-never estimates from character counts. Rows are never rewritten or reordered;
-the run's cost total is the sum of the row costs the API made possible.
-
-Each run owns its directory under data/runs/<YYYY-MM-DD>/<run_id>, so no two
-runs ever share or overwrite a run.json; if two runs start in the same
-second, the second run_id gets a -2 suffix. A deliberate extra run - one
-model, one prompt, a chosen --reasoning-effort - is just another run
-directory, so a max-effort cell never mixes into a main run's table.
-`run.json` is written when the
-run opens (total unknown) and again when it closes. A 402 (credits) or 403
-(key) stops the run and keeps every row written so far.
+`make score` walks the answers with their prompts and rubrics and records
+the 0, 1 or 2 you type into `data/scores.csv`. Scores stay offline and are
+deliberately never published - the leaderboard's columns are automated
+and deterministic, and hand-scoring is how a human spot-checks the
+automation without seeing what it concluded.
 
 ## Honest labels
 
-- Prices are dated 2026-11-20 from https://www.sarvam.ai/token-factory/pricing,
-  excluding GST. `sarvam-105b`, `sarvam-105b-conversations` and
-  `deepseekv4.1-flash-1017` are on introductory rates through the end of
-  2026, so every rupee figure changes then - and the price ranking may flip.
-  (The generated index at docs.sarvam.ai/api/token-factory/llms.txt
-  disagrees on two models' rates; this project pins the pricing page.)
-- n=1 per cell: directional, not definitive.
-- Latency is measured from one machine on one connection. It compares models
-  under identical conditions; it is not a promise about production timing.
+- n=1 per cell: directional, not definitive. One call per model per
+  prompt measures a sample, not a distribution.
+- Introductory pricing (three models) runs through the end of 2026; every
+  rupee figure and possibly the ranking change after that. The generated
+  index at `docs.sarvam.ai/api/token-factory/llms.txt` disagrees with the
+  pricing page on two models' rates; this project pins the pricing page
+  and the date it was read.
+- Latency is measured from one machine on one connection. It compares
+  models under identical conditions; it is not a promise about production
+  timing.
+- `finish_reason: "length"` renders as "hit token budget" - a budget
+  failure, not a model failure, and never hidden.
 
-## Known issues
+## Repository layout
 
-- The PRD's P2 line "3 Hinglish (Latin script)" is imprecise. In
-  prompts.yaml, `script` is the requested OUTPUT script (Block B's header is
-  authoritative), so he-1 - Hinglish input demanding a Devanagari answer -
-  declares `script: deva`. This project treats script as the requested
-  output script everywhere.
-- The generated index at docs.sarvam.ai/api/token-factory/llms.txt
-  disagrees with the pricing page on two models' rates; see Honest labels.
+    bench/registry.py     the six models; the only place an ID or a price lives
+    bench/prompts.py      loads prompts.yaml; experiment hash (check keys excluded)
+    bench/runner.py       the streaming call, retry policy, the fan-out
+    bench/store.py        one directory per run: append-only results.jsonl + run.json
+    bench/metrics.py      script classifier, p50/p90, cost aggregation
+    bench/checks.py       deterministic instruction and answer checks
+    bench/leaderboard.py  a run's rows -> site/data/leaderboard.json
+    bench/cli.py          run / score / build
+    bench/smoke.py        verifies the newest row against the smoke criteria
+    prompts/prompts.yaml  the 12 prompts and their expectations - fixed content
+    site/index.html       the leaderboard and drill-down, one static page
+    site/data/            leaderboard.json, written by `make build`
+    tests/                the suite: fakes and fixtures, no network, no key
+    tests/fixtures/      rows.json - eight real rows, verbatim, for the tests
 
-## Day 1 probe (to be recorded here after the first live run)
+## Requirements
 
-Which `reasoning_effort` values each model accepts (`none` / `low` /
-`medium` / `high` / `max`) - two doc pages currently disagree about `none`
-on `sarvam-105b`. Run one prompt per model per value and read the rows; a
-model that rejects a value is probed once without the field and records
-`reasoning_effort: null`.
-
-## Layout
-
-    bench/registry.py    the six models, prices dated and sourced (Block C)
-    bench/prompts.py     loads prompts.yaml; experiment hash (check keys excluded)
-    bench/runner.py      one_call: Block D's request + retry policy; the fan-out
-    bench/store.py       one directory per run: append-only results.jsonl + run.json
-    bench/cli.py         run / score / build
-    bench/metrics.py     script classifier (Block G ranges), p50/p90, cost aggregation
-    bench/checks.py      deterministic instruction and answer checks, no model judge
-    bench/leaderboard.py a run's rows + the checks -> site/data/leaderboard.json (P8)
-    bench/smoke.py       verifies the newest row against the smoke criteria
-    prompts/prompts.yaml the 12 prompts (Block B) + their machine-check expectations
-    site/index.html      the leaderboard and drill-down: one static page, no build step
-    site/data/           leaderboard.json, written by `make build`, committed
-    tests/fixtures/      rows.json: 8 real rows, verbatim, the tests' only run data
-    tests/               registry, prompts, runner, store, smoke, CLI, leaderboard,
-                         checks, site; fakes, no network
-    pyproject.toml      metadata: requires-python >= 3.12
+Python 3.12 or newer (`pyproject.toml` pins `requires-python = ">=3.12"`).
+Three dependencies: `openai` (pointed at `https://api.sarvam.ai/v2`),
+`pyyaml`, `pytest`. The test suite runs with no network and no API key:
+`make test`.

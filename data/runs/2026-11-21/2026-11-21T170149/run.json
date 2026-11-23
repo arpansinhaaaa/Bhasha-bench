@@ -1,0 +1,10 @@
+{
+  "run_id": "2026-11-21T170149",
+  "timestamp": "2026-11-21T17:01:49+05:30",
+  "prompt_set_hash": "d8d8b56640a1803f1f101cdfe31dfe831b830623443519361618b0b9c38be12b",
+  "models": [
+    "glm5.3"
+  ],
+  "total_cost_inr": 0.234564,
+  "reasoning_effort_fallback_models": []
+}

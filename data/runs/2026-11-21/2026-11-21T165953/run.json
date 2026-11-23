@@ -1,0 +1,15 @@
+{
+  "run_id": "2026-11-21T165953",
+  "timestamp": "2026-11-21T16:59:53+05:30",
+  "prompt_set_hash": "d8d8b56640a1803f1f101cdfe31dfe831b830623443519361618b0b9c38be12b",
+  "models": [
+    "sarvam-105b",
+    "sarvam-105b-conversations",
+    "glm5.3",
+    "glm5.3-flash",
+    "gemma4",
+    "deepseekv4.1-flash-1017"
+  ],
+  "total_cost_inr": 3.717271,
+  "reasoning_effort_fallback_models": []
+}

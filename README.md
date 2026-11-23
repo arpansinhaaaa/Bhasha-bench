@@ -165,7 +165,7 @@ automation without seeing what it concluded.
     prompts/prompts.yaml  the 12 prompts and their expectations - fixed content
     site/index.html       the leaderboard and drill-down, one static page
     site/data/            leaderboard.json, written by `make build`
-    tests/                the suite: fakes and fixtures, no network, no key
+    tests/                the suite: stubs and fixtures, no network, no key
     tests/fixtures/      rows.json - eight real rows, verbatim, for the tests
 
 ## Requirements

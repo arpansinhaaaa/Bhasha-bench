@@ -7,8 +7,8 @@ assertions are independent of the implementation being tested.
 from bench import metrics
 
 
-def test_ranges_match_the_handoff():
-    # Block G: deva U+0900-U+097F, taml U+0B80-U+0BFF, beng U+0980-U+09FF,
+def test_ranges_are_the_single_source():
+    # deva U+0900-U+097F, taml U+0B80-U+0BFF, beng U+0980-U+09FF,
     # latin a-z A-Z.
     assert metrics.SCRIPT_RANGES["deva"] == ((0x0900, 0x097F),)
     assert metrics.SCRIPT_RANGES["taml"] == ((0x0B80, 0x0BFF),)

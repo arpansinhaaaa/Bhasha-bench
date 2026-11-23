@@ -1,4 +1,4 @@
-"""The prompt set is fixed content (handoff Block B). Pin its shape, never its text."""
+"""The prompt set is fixed content. Pin its shape, never its text."""
 
 from bench import prompts as prompt_set
 

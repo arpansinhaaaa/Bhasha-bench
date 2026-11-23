@@ -3,7 +3,7 @@ PYTHON := $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo pytho
 
 .PHONY: test run smoke smoke-check score build
 
-# No network, no API key: the suite runs against fake clients.
+# No network, no API key: the suite runs against stub clients.
 test:
 	$(PYTHON) -m pytest tests -v
 

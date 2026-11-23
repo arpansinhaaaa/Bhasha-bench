@@ -1,12 +1,12 @@
 """One streaming chat completion per call, with retry, backoff and fan-out.
 
-The request shape is Block D of Bhasha_Bench_Coding_Agent_Handoff.md: the
-OpenAI SDK against https://api.sarvam.ai/v2, streaming always, with
+The request shape follows Sarvam's Chat Completions V2 API: the OpenAI SDK
+against https://api.sarvam.ai/v2, streaming always, with
 stream_options={"include_usage": True} so token counts are real, max_tokens
 1500 (it counts reasoning tokens), reasoning_effort "low" by default, and
 temperature never set.
 
-Retry policy (Block G): 429 and 503 only, at most 4 attempts, exponential
+Retry policy: 429 and 503 only, at most 4 attempts, exponential
 backoff (1 s, 2 s, 4 s), honouring Retry-After when the server sends it.
 400, 402 and 403 are never retried as status errors - but a 400 gets exactly
 one probe without `reasoning_effort`, since some models reject the field,
@@ -89,7 +89,7 @@ def one_call(model: str, prompt: str, *, client=None, max_tokens: int = 1500,
 
 
 def _row_from_stream(stream, *, model, effort, t0, attempts) -> dict:
-    """Consume the stream (PRD section 8) and assemble the row."""
+    """Consume the stream and assemble the row."""
     ttft_ms, text, usage, finish = None, [], None, None
     for chunk in stream:
         if chunk.choices:
@@ -198,7 +198,7 @@ async def run_all(models, prompts, *, client=None, concurrency=3,
     `prompts` is a list of (prompt_id, text) pairs. `on_row(row)` is called
     once per completed call, in completion order, with prompt_id attached.
     Returns (rows, stop_reason): stop_reason is the error code that halted
-    the run (402 wallet / 403 key, per the PRD's error branches) or None. A
+    the run (402 wallet / 403 key) or None. A
     call that never ran because the run stopped produces no row.
     """
     if client is None:

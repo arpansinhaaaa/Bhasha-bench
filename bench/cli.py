@@ -35,7 +35,7 @@ from bench import runner
 from bench import store as store_mod
 from bench.smoke import newest_run_dir
 
-DEFAULT_EFFORT = "low"  # Block G: low, and not "none" until the probe settles it
+DEFAULT_EFFORT = "low"  # the verified default; "none" stays unverified on some models
 
 
 def build_parser() -> argparse.ArgumentParser:

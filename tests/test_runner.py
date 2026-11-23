@@ -1,4 +1,4 @@
-"""Runner behaviour against fake clients. No network, no API key, no waiting:
+"""Runner behaviour against stub clients. No network, no API key, no waiting:
 `sleep` is injected, so backoff waits are recorded rather than slept."""
 
 import asyncio
@@ -8,13 +8,13 @@ from types import SimpleNamespace
 import pytest
 
 from bench import registry, runner
-from fakes import FakeClient, FakeStatusError, err_action, ok_action
+from tests.stubs import StubClient, StubStatusError, err_action, ok_action
 
 MODEL = next(iter(registry.MODELS))  # registry-sourced; never typed here
 
 
-def test_success_row_carries_the_block_d_request_shape():
-    client = FakeClient([ok_action()])
+def test_success_row_carries_the_verified_request_shape():
+    client = StubClient([ok_action()])
     row = runner.one_call(MODEL, "a prompt", client=client)
     assert row["model"] == MODEL
     assert row["error_code"] is None
@@ -28,7 +28,7 @@ def test_success_row_carries_the_block_d_request_shape():
     assert row["total_ms"] >= row["ttft_ms"]
     entry = registry.MODELS[MODEL]
     assert row["cost_inr"] == round(37 / 1e6 * entry["in"] + 11 / 1e6 * entry["out"], 6)
-    # Block D, verbatim: streaming with usage, no temperature, a 1500 budget.
+    # The verified request shape: streaming with usage, no temperature, a 1500 budget.
     sent = client.calls[0]
     assert sent["stream"] is True
     assert sent["stream_options"] == {"include_usage": True}
@@ -39,7 +39,7 @@ def test_success_row_carries_the_block_d_request_shape():
 
 
 def test_missing_usage_block_means_nulls_never_estimates():
-    client = FakeClient([ok_action(usage=None)])
+    client = StubClient([ok_action(usage=None)])
     row = runner.one_call(MODEL, "p", client=client)
     assert row["text"] == "नमस्ते दुनिया"
     assert row["finish_reason"] == "stop"
@@ -50,7 +50,7 @@ def test_missing_usage_block_means_nulls_never_estimates():
 
 
 def test_cached_tokens_bill_at_the_cached_rate():
-    client = FakeClient([ok_action(usage=(1000, 500, 400))])
+    client = StubClient([ok_action(usage=(1000, 500, 400))])
     row = runner.one_call(MODEL, "p", client=client)
     entry = registry.MODELS[MODEL]
     expected = round(600 / 1e6 * entry["in"] + 400 / 1e6 * entry["cached"]
@@ -60,7 +60,7 @@ def test_cached_tokens_bill_at_the_cached_rate():
 
 
 def test_429_retries_with_exponential_backoff_then_succeeds():
-    client = FakeClient([
+    client = StubClient([
         err_action(429, "rate_limit_exceeded_error"),
         err_action(429, "rate_limit_exceeded_error"),
         ok_action(),
@@ -73,7 +73,7 @@ def test_429_retries_with_exponential_backoff_then_succeeds():
 
 
 def test_retry_after_header_is_honoured_over_the_backoff_curve():
-    client = FakeClient([
+    client = StubClient([
         err_action(429, "model_rate_limit_exceeded_error", retry_after=7),
         ok_action(),
     ])
@@ -84,7 +84,7 @@ def test_retry_after_header_is_honoured_over_the_backoff_curve():
 
 
 def test_exhausted_429_is_still_a_row_with_its_error_code():
-    client = FakeClient([err_action(429, "model_rate_limit_exceeded_error")])
+    client = StubClient([err_action(429, "model_rate_limit_exceeded_error")])
     waits = []
     row = runner.one_call(MODEL, "p", client=client, sleep=waits.append)
     assert row["error_code"] == "429 model_rate_limit_exceeded_error"
@@ -96,7 +96,7 @@ def test_exhausted_429_is_still_a_row_with_its_error_code():
 
 
 def test_503_retries_then_succeeds():
-    client = FakeClient([err_action(503, "model_overloaded"), ok_action()])
+    client = StubClient([err_action(503, "model_overloaded"), ok_action()])
     row = runner.one_call(MODEL, "p", client=client, sleep=lambda s: None)
     assert row["error_code"] is None
     assert row["attempts"] == 2 and row["retried"] is True
@@ -107,7 +107,7 @@ def test_503_retries_then_succeeds():
     (403, "invalid_api_key_error"),
 ])
 def test_wallet_and_key_errors_are_never_retried(status, code):
-    client = FakeClient([err_action(status, code)])
+    client = StubClient([err_action(status, code)])
     row = runner.one_call(MODEL, "p", client=client, sleep=lambda s: None)
     assert row["attempts"] == 1 and row["retried"] is False
     assert row["reasoning_effort"] == "low"
@@ -121,7 +121,7 @@ def test_400_on_reasoning_effort_is_probed_once_without_the_field():
     def create(**kwargs):
         calls.append(kwargs)
         if "reasoning_effort" in kwargs:
-            raise FakeStatusError(400, "reasoning_effort_not_supported")
+            raise StubStatusError(400, "reasoning_effort_not_supported")
         return ok_action()["chunks"]
 
     client = SimpleNamespace(
@@ -137,7 +137,7 @@ def test_400_on_reasoning_effort_is_probed_once_without_the_field():
 
 
 def test_400_that_persists_is_one_row_with_the_error_code():
-    client = FakeClient([err_action(400, "invalid_request_error")])
+    client = StubClient([err_action(400, "invalid_request_error")])
     row = runner.one_call(MODEL, "p", client=client, sleep=lambda s: None)
     assert row["attempts"] == 2          # one probe without reasoning_effort, no more
     assert row["reasoning_effort"] is None
@@ -202,9 +202,9 @@ def test_run_all_at_concurrency_one_never_overlaps():
 
 def test_run_all_stops_the_run_on_402():
     # hold_s puts all three in flight before the first 402 lands, which is
-    # what real latency guarantees; an instant fake lets the first call
+    # what real latency guarantees; an instant stub lets the first call
     # finish before the others even acquire the semaphore.
-    client = FakeClient([err_action(402, "insufficient_quota_error", hold_s=0.05)])
+    client = StubClient([err_action(402, "insufficient_quota_error", hold_s=0.05)])
     models = list(registry.MODELS)[:2]
     prompts = [("p1", "t1"), ("p2", "t2"), ("p3", "t3")]
     rows, stop_reason = asyncio.run(

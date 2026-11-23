@@ -1,6 +1,6 @@
 """The human scorer: prompt, rubric and answer in; a typed 0/1/2 out.
 
-Every score asserted here was typed by the fake input - the command must
+Every score asserted here was typed by the scripted input - the command must
 never invent, default or estimate one. No network, no key."""
 
 import csv

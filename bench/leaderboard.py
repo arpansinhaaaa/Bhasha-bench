@@ -1,4 +1,4 @@
-"""Build the leaderboard JSON the static page publishes (PRD P8, P11).
+"""Build the leaderboard JSON the static page publishes.
 
 `python -m bench.cli build` reads one run's results.jsonl and its run.json,
 and writes site/data/leaderboard.json - the only file the page ever

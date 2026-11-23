@@ -1,6 +1,6 @@
 """Append-only run storage.
 
-Layout, per the handoff and the Day-1 review:
+Layout:
 
     data/runs/<YYYY-MM-DD>/<run_id>/results.jsonl   one JSON object per line, append-only
     data/runs/<YYYY-MM-DD>/<run_id>/run.json        run_id, timestamp, prompt-set hash,

@@ -1,4 +1,4 @@
-"""The leaderboard builder, PRD P8/P11, against a fake run.
+"""The leaderboard builder, against a synthetic run.
 
 No network, no API key, no live call. The fixture is four rows over two
 models and two real prompts, with one error row and one truncated row; the
@@ -24,7 +24,7 @@ TIMESTAMP = "2026-11-21T10:00:00+05:30"
 MODELS = list(registry.MODELS)[:2]          # never a typed model id
 
 
-def _fake_row(model, prompt_id, *, text="", usage=None, ttft=None, total=None,
+def _synthetic_row(model, prompt_id, *, text="", usage=None, ttft=None, total=None,
               finish="stop", error=None, retried=False, attempts=1, effort="low",
               run_id=RUN_ID):
     """A results.jsonl row in the schema the runner writes."""
@@ -47,13 +47,13 @@ def _fixture_rows():
     """Four rows: good, good, errored, truncated - the honesty cases."""
     m1, m2 = MODELS
     return [
-        _fake_row(m1, "hi-1", text="विक्रय मूल्य ₹172.50 है।", usage=(100, 200),
+        _synthetic_row(m1, "hi-1", text="विक्रय मूल्य ₹172.50 है।", usage=(100, 200),
                   ttft=100, total=500),                # carries the value: correct
-        _fake_row(m1, "hi-3", text="namaste duniya", usage=(50, 100),
+        _synthetic_row(m1, "hi-3", text="namaste duniya", usage=(50, 100),
                   ttft=200, total=800),                # one fragment, not three points
-        _fake_row(m2, "hi-1", error="429 model_rate_limit_exceeded_error",
+        _synthetic_row(m2, "hi-1", error="429 model_rate_limit_exceeded_error",
                   retried=True, attempts=4),          # a failed call is a row
-        _fake_row(m2, "hi-3", text="नमस्ते", usage=(60, 1500),
+        _synthetic_row(m2, "hi-3", text="नमस्ते", usage=(60, 1500),
                   ttft=300, total=900, finish="length"),  # deva answer, hit budget
     ]
 
@@ -75,23 +75,23 @@ def _write_run(base, rows, prompt_hash, run_id=RUN_ID):
 
 
 @pytest.fixture
-def fake_run(tmp_path):
+def synthetic_run(tmp_path):
     """A two-model, two-prompt run."""
     prompts, prompt_hash = prompt_set.load_prompts()
     run_dir = _write_run(tmp_path, _fixture_rows(), prompt_hash)
     return run_dir, prompts, prompt_hash
 
 
-def _build(fake_run):
-    run_dir, prompts, prompt_hash = fake_run
+def _build(synthetic_run):
+    run_dir, prompts, prompt_hash = synthetic_run
     return leaderboard.build_leaderboard(run_dir, prompts, prompt_hash)
 
 
 # -- aggregates are hand-computed arithmetic, never estimates ----------------
 
 
-def test_per_model_aggregates_match_hand_computed_values(fake_run):
-    payload = _build(fake_run)
+def test_per_model_aggregates_match_hand_computed_values(synthetic_run):
+    payload = _build(synthetic_run)
     m1, m2 = MODELS
     summary = payload["models_summary"]
 
@@ -136,8 +136,8 @@ def test_per_model_aggregates_match_hand_computed_values(fake_run):
     assert payload["models"] == MODELS
 
 
-def test_a_failed_call_stays_a_cell_and_never_a_dash(fake_run):
-    payload = _build(fake_run)
+def test_a_failed_call_stays_a_cell_and_never_a_dash(synthetic_run):
+    payload = _build(synthetic_run)
     cells = {prompt["id"]: {c["model"]: c for c in prompt["cells"]}
              for prompt in payload["prompts"]}
     error_cell = cells["hi-1"][MODELS[1]]
@@ -158,9 +158,9 @@ def test_a_failed_call_stays_a_cell_and_never_a_dash(fake_run):
         assert [c["model"] for c in prompt["cells"]] == MODELS       # run order
 
 
-def test_checks_come_from_the_prompt_spec_not_from_the_answers(fake_run):
+def test_checks_come_from_the_prompt_spec_not_from_the_answers(synthetic_run):
     """Every cell's two checks are recomputed from prompts.yaml, deterministically."""
-    payload = _build(fake_run)
+    payload = _build(synthetic_run)
     cells = {(p["id"], c["model"]): c for p in payload["prompts"] for c in p["cells"]}
     # m1/hi-1 carries the 172.50 value and hi-1 declares no constraints.
     assert cells[("hi-1", MODELS[0])]["answer_correct"] is True
@@ -170,8 +170,8 @@ def test_checks_come_from_the_prompt_spec_not_from_the_answers(fake_run):
     assert cells[("hi-3", MODELS[0])]["constraints_met"] is False
 
 
-def test_honest_labels_travel_inside_the_payload(fake_run):
-    payload = _build(fake_run)
+def test_honest_labels_travel_inside_the_payload(synthetic_run):
+    payload = _build(synthetic_run)
     assert payload["run_id"] == RUN_ID
     assert payload["run_date"] == DAY and payload["run_timestamp"] == TIMESTAMP
     assert payload["disclaimer"] == leaderboard.DISCLAIMER
@@ -184,9 +184,9 @@ def test_honest_labels_travel_inside_the_payload(fake_run):
         m for m in MODELS if registry.MODELS[m]["introductory"]]
 
 
-def test_payload_carries_every_key_the_site_reads(fake_run):
+def test_payload_carries_every_key_the_site_reads(synthetic_run):
     """The static page renders exactly these keys; the builder is its only source."""
-    payload = _build(fake_run)
+    payload = _build(synthetic_run)
     assert set(payload) == {
         "run_id", "run_timestamp", "run_date", "prompt_set_hash", "models",
         "n_per_cell", "disclaimer", "prices_read_on", "pricing_url",
@@ -214,9 +214,9 @@ def test_payload_carries_every_key_the_site_reads(fake_run):
             }
 
 
-def test_the_denominators_travel_in_the_payload(fake_run):
+def test_the_denominators_travel_in_the_payload(synthetic_run):
     """x/12 and x/4 are printed as such because only some prompts check."""
-    payload = _build(fake_run)
+    payload = _build(synthetic_run)
     for entry in payload["models_summary"].values():
         instructions = entry["instructions_followed"]
         answers = entry["answers_correct"]
@@ -257,9 +257,9 @@ def test_a_run_with_no_rows_refuses_to_build(tmp_path):
         leaderboard.build_leaderboard(run_dir, prompts, prompt_hash)
 
 
-def test_write_leaderboard_creates_the_site_data_file(fake_run, tmp_path):
+def test_write_leaderboard_creates_the_site_data_file(synthetic_run, tmp_path):
     target = tmp_path / "site" / "data" / "leaderboard.json"
-    written = leaderboard.write_leaderboard(_build(fake_run), target)
+    written = leaderboard.write_leaderboard(_build(synthetic_run), target)
     assert written == target and target.exists()
     on_disk = json.loads(target.read_text(encoding="utf-8"))
     assert on_disk["run_id"] == RUN_ID and on_disk["models"] == MODELS
@@ -275,7 +275,7 @@ def _build_args(**over):
 
 
 def test_cmd_build_writes_the_payload_and_prints_the_table(
-        fake_run, tmp_path, capsys):
+        synthetic_run, tmp_path, capsys):
     out_path = tmp_path / "site" / "data" / "leaderboard.json"
     rc = cli.cmd_build(_build_args(), runs_base=tmp_path, out_path=out_path)
     assert rc == 0
@@ -299,7 +299,7 @@ def test_cmd_build_writes_the_payload_and_prints_the_table(
         "passed": 0, "total": 2}
 
 
-def test_cmd_build_defaults_to_the_newest_run(fake_run, tmp_path, capsys):
+def test_cmd_build_defaults_to_the_newest_run(synthetic_run, tmp_path, capsys):
     rc = cli.cmd_build(_build_args(run=None), runs_base=tmp_path,
                        out_path=tmp_path / "lb.json")
     assert rc == 0

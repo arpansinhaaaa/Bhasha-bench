@@ -1,6 +1,6 @@
 """Load the fixed prompt set and its content hash.
 
-prompts/prompts.yaml (handoff Block B) is the experiment itself: twelve
+prompts/prompts.yaml is the experiment itself: twelve
 prompts, fixed and versioned. This module only reads it; nothing here may
 rewrite, reorder, translate or "fix" its content.
 

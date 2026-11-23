@@ -1,11 +1,11 @@
 """Script fidelity and run statistics. Deterministic, no model judge.
 
-The script classifier is PRD section 12 and handoff Block G: one dict of
-Unicode ranges, percentages counted over letters, labels native_script /
-romanized / english / mixed. Two labels exist beyond those four because
-honesty beats forcing a fit: 'empty' when there are no letters to count (a
-blank or errored cell), and 'other_script' when the answer is mostly
-neither the requested script nor Latin (say, Tamil to a Devanagari prompt).
+The script classifier is one dict of Unicode ranges, percentages counted
+over letters, labels native_script / romanized / english / mixed. Two
+labels exist beyond those four because honesty beats forcing a fit:
+'empty' when there are no letters to count (a blank or errored cell),
+and 'other_script' when the answer is mostly neither the requested script
+nor Latin (say, Tamil to a Devanagari prompt).
 
 The Unicode blocks alone cannot tell romanised Hindi from English, so a
 small deterministic lexicon of English function words draws that line. It
@@ -18,8 +18,8 @@ import math
 import re
 from collections import namedtuple
 
-# Block G: one dict. deva U+0900-U+097F, taml U+0B80-U+0BFF, beng
-# U+0980-U+09FF, latin a-z A-Z.
+# One dict, the single source of the ranges: deva U+0900-U+097F, taml
+# U+0B80-U+0BFF, beng U+0980-U+09FF, latin a-z A-Z.
 SCRIPT_RANGES = {
     "deva": ((0x0900, 0x097F),),
     "taml": ((0x0B80, 0x0BFF),),

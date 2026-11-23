@@ -1,14 +1,14 @@
-"""Fakes for the runner and CLI tests: no network, no key, no waiting."""
+"""Stub clients for the runner and CLI tests: no network, no key, no waiting."""
 
 import time
 from types import SimpleNamespace
 
 
-class FakeStatusError(Exception):
+class StubStatusError(Exception):
     """Mimics what the runner reads off an OpenAI APIStatusError."""
 
     def __init__(self, status_code, code=None, retry_after=None):
-        super().__init__(f"fake HTTP {status_code}")
+        super().__init__(f"stub HTTP {status_code}")
         self.status_code = status_code
         self.body = {"error": {"code": code}} if code else None
         headers = {} if retry_after is None else {"Retry-After": str(retry_after)}
@@ -50,7 +50,7 @@ def err_action(status, code=None, retry_after=None, hold_s=0.0):
             "hold_s": hold_s}
 
 
-class FakeClient:
+class StubClient:
     """chat.completions.create(**kwargs) from a script of actions.
 
     A one-action script repeats forever (safe under the concurrent fan-out);
@@ -71,5 +71,5 @@ class FakeClient:
             time.sleep(hold_s)
         if "chunks" in action:
             return action["chunks"]
-        raise FakeStatusError(action["status"], action.get("code"),
-                              action.get("retry_after"))
+        raise StubStatusError(action["status"], action.get("code"),
+                               action.get("retry_after"))

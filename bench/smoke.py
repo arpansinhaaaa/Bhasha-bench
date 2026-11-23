@@ -1,7 +1,7 @@
 """Verify the newest run's last row against the live smoke criteria.
 
-Prepared for the Day-1 smoke test, which a human runs with the key exported
-(the harness never runs it itself):
+The smoke test is run by a human with the key exported (the harness never
+runs it itself):
 
     export SARVAM_API_KEY=...
     python -m bench.cli run --models sarvam-105b --prompts hi-1
